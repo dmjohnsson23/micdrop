@@ -66,6 +66,23 @@ class TestPipeline(unittest.TestCase):
         StaticSource(3) >> collect.put()
         self.assertEqual([1, 2, 3], collect.get())
     
+    def test_collect_format_string(self):
+        collect = CollectFormatString("Sometimes you think you're #{}, when in reality you're more of a #{other}.")
+        StaticSource(1) >> collect.put()
+        StaticSource(2) >> collect.put('other')
+        self.assertEqual("Sometimes you think you're #1, when in reality you're more of a #2.", collect.get())
+    
+    def test_collect_call(self):
+        @CollectCall
+        def collect(one, two, three):
+            self.assertEqual(one, 1)
+            self.assertEqual(two, 2)
+            self.assertEqual(three, 3)
+        StaticSource(1) >> collect.put()
+        StaticSource(3) >> collect.put('three')
+        StaticSource(2) >> collect.put('two')
+        
+    
     def test_list_join_split(self):
         from functools import partial
         split = StaticSource('1,2,3') >> SplitDelimited(',') >> partial(map, int) >> list

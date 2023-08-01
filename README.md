@@ -34,6 +34,11 @@ values = source.take('PIPE SEPARATED') >> lambda val: val.split('|')
 values.take(0) >> sink.put('val1')
 values.take(1) >> sink.put('val2')
 values.take(2) >> sink.put('val3')
+# An alternate syntax to split values, for readability
+with source.take('PIPE SEPARATED') >> lambda val: val.split('|') as values:
+    values.take(0) >> sink.put('val1')
+    values.take(1) >> sink.put('val2')
+    values.take(2) >> sink.put('val3')
 # Combine values
 values = ListCollector()
 source.take('THING 1') >> values.put()
@@ -45,6 +50,11 @@ values = ListCollector()
 values.put() << source.take('THING 1')
 values.put() << source.take('THING 2')
 sink.put('things') << (lambda l: ','.join(l)) << values
+# The context manager syntax can also be used if helpful
+with ListCollector() as values:
+    source.take('THING 1') >> values.put()
+    source.take('THING 2') >> values.put()
+    values >> (lambda l: ','.join(l)) >> sink.put('things')
 
 # Import data from the source to the sink 
 # (keyword arguments may differ from one sink type to another)

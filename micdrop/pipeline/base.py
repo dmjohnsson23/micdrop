@@ -32,8 +32,12 @@ class PipelineSource:
         Take a sub-value from the pipeline; used to split fields or destructure data.
         """
         return self >> Take(key)
+    
+    def __enter__(self):
+        return self
 
-
+    def __exit__(self, type, value, traceback):
+        pass
 class PipelineSink:
     _prev: PipelineSource
 
@@ -86,7 +90,7 @@ class Take(PipelineItem):
 
 class Call(PipelineItem):
     def __init__(self, function) -> None:
-        self._function = function
+        self.function = function
     
     def process(self, value):
-        return self._function(value)
+        return self.function(value)

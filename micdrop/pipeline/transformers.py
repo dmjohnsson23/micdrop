@@ -1,7 +1,7 @@
 """
 Collection of pipeline items that perform various transformation
 """
-__all__ = ('ParseDatetime', 'FormatDatetime', 'ParseDate', 'FormatDate')
+__all__ = ('ParseDatetime', 'FormatDatetime', 'ParseDate', 'FormatDate', 'ParseBoolean', 'FormatBoolean', 'Lookup', 'StringReplace', 'Default')
 
 from .base import PipelineItem
     
@@ -84,3 +84,53 @@ class FormatDate(PipelineItem):
                 return zero_time
         if value is not None:
             return value.strftime(self._format)
+
+class ParseBoolean(PipelineItem):
+    def __init__(self, true_values={1, '1', 'true', 'True', 'TRUE', 'yes', 'Yes', 'YES', 'on', 'On', 'ON'}, false_values={0, '0', 'false', 'False', 'FALSE', 'no', 'No', 'NO', 'off', 'Off', 'OFF'}):
+        self.true_values = set(true_values)
+        self.false_values = set(false_values)
+    
+    def process(self, value):
+        if value in self.true_values:
+            return True
+        if value in self.false_values:
+            return False
+        if value is None:
+            return None
+        raise ValueError(f'Unrecognized value: {repr(value)}')
+        
+
+class FormatBoolean(PipelineItem):
+    def __init__(self, true_value='Yes', false_value='No'):
+        self.true_value = true_value
+        self.false_value = false_value
+    
+    def process(self, value):
+        if value is None:
+            return None
+        if value:
+            return self.true_value
+        else:
+            return self.false_value
+
+
+class Lookup(PipelineItem):
+    def __init__(self, lookup_map):
+        self.map = lookup_map
+    
+    def process(self, value):
+        return self.map.get(value)
+
+class StringReplace(PipelineItem):
+    pass #TODO
+
+class Default(PipelineItem):
+    def __init__(self, value):
+        self.value = value
+    
+    def process(self, value):
+        if value is None:
+            return self.value
+        else:
+            return value
+    
