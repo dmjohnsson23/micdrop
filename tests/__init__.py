@@ -2,8 +2,8 @@ import unittest
 import sys, os
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.basename(__file__), '../')))
 from micdrop.pipeline import *
-from micdrop.sink import DictsSink
-from micdrop.source import DictsSource
+from micdrop.sink import *
+from micdrop.source import *
 
 class TestPipeline(unittest.TestCase):
     def test_loose(self):
@@ -109,6 +109,53 @@ class TestPipeline(unittest.TestCase):
         self.assertIsNone(pipeline.get())
         pipeline = StaticSource(datetime(2020, 2, 2, 11, 11, 11)) >> FormatDatetime()
         self.assertEqual('2020-02-02 11:11:11', pipeline.get())
+    
+    def test_choose(self):
+        with IterableSource(range(4)) >> Choose() as choice:
+            StaticSource('first') >> (choice.value == 0)
+            StaticSource('second') >> (choice.value == 1)
+            StaticSource('third') >> (choice.value == 2)
+            StaticSource('default') >> choice.fallback()
+            self.assertEqual(choice.get(), 'first')
+            choice.reset()
+            self.assertEqual(choice.get(), 'second')
+            choice.reset()
+            self.assertEqual(choice.get(), 'third')
+            choice.reset()
+            self.assertEqual(choice.get(), 'default')
+    
+    def test_branch(self):
+        with CollectDict() as collect:
+            with IterableSource(range(4)) >> Branch() as cases:
+                StaticSource('chocolate') >> cases.put()
+                with cases.value == 0 as case:
+                    case.take() >> collect.put('peanut butter')
+                with cases.value == 1 as case:
+                    case.take() >> collect.put('milk')
+                with cases.value == 2 as case:
+                    case.take() >> collect.put('ice cream')
+                with cases.fallback() as case:
+                    case.take() >> collect.put('chocolate')
+            self.assertEqual(collect.get(), {'peanut butter':'chocolate','milk':None,'ice cream':None,'chocolate':None})
+            collect.reset()
+            self.assertEqual(collect.get(), {'peanut butter':None,'milk':'chocolate','ice cream':None,'chocolate':None})
+            collect.reset()
+            self.assertEqual(collect.get(), {'peanut butter':None,'milk':None,'ice cream':'chocolate','chocolate':None})
+            collect.reset()
+            self.assertEqual(collect.get(), {'peanut butter':None,'milk':None,'ice cream':None,'chocolate':'chocolate'})
+
+    def test_pipeline_segment(self):
+        source1 = IterableSource(range(5))
+        source2 = IterableSource(range(4, 0, -1))
+        pipeline = PipelineSegment() >> (lambda val: val * 5) >> str
+        sink1 = source1 >> pipeline.apply()
+        sink2 = source2 >> pipeline.apply() >> float
+        self.assertEqual(sink1.get(), '0')
+        self.assertEqual(sink2.get(), 20.0)
+        sink1.reset()
+        sink2.reset()
+        self.assertEqual(sink1.get(), '5')
+        self.assertEqual(sink2.get(), 15.0)
 
 
 class TestSourceSink(unittest.TestCase):
@@ -209,4 +256,31 @@ class TestSourceSink(unittest.TestCase):
                 'birth date': None,
                 'race': 'Human',
             }
+        ])
+
+    def test_multi_sink(self):
+        source = DictsSource(self.test_data_1)
+        sink = MultiSink(
+            s1 = DictsSink(),
+            s2 = DictsSink()
+        )
+
+        source.take('f_name') >> sink.s1.put('f_name')
+        source.take('l_name') >> sink.s1.put('l_name')
+        source.take('race') >> sink.s2.put('race')
+        source.take('occupation') >> sink.s2.put('occupation')
+
+        self.assertEqual(sink.process_all(source, True), [
+            [
+                {'f_name': 'Bilbo', 'l_name': 'Baggins'},
+                {'race': 'Hobbit', 'occupation': 'Burglar'},
+            ],
+            [
+                {'f_name': 'Peter', 'l_name': 'Parker'},
+                {'race': 'Human', 'occupation': 'Photographer'},
+            ],
+            [
+                {'f_name': 'Perrin', 'l_name': 'Aybara'},
+                {'race': 'Human', 'occupation': 'Blacksmith'},
+            ],
         ])

@@ -1,13 +1,16 @@
 [tool.poetry]
 name = "micdrop"
 version = "0.1.0"
-description = "Tool to aid in migrating, mappibg, importing, converting, and transforming data."
+description = "Library with declaritive interface to aid in building tools for migrating, mapping, importing, converting, and transforming data."
 authors = ["Dominick Johnson <dominick.johnson@tylertech.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.8"
+mysql-connector-python = {version = "^8.1.0", optional = true}
 
+[tool.poetry.extras]
+mysql_connector = ["mysql-connector-python"]
 
 [build-system]
 requires = ["poetry-core"]

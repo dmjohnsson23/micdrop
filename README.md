@@ -1,6 +1,17 @@
 # MIC Drop (Migrate, Import, Convert)
 
-Extensible framework/library to migrate data from source to another using a declarative interface.
+Extensible framework/library to migrate data from source to another using a declarative interface. The library makes elaborate (and somewhat unconventional) use of operator overloading to abstract away some magic and allow you to focus on the important part: mapping data.
+
+## Terminology
+
+* Source: A source of data to be transformed, consisting of multiple rows
+* Row: A single object in a source (Could be a literal Python object, a row of a CSV file or relational database table, etc... )
+* Take: The beginning of a pipeline, which expects to receive a single value from each row in the source; or a branch in a pipeline
+* Pipeline: A series of transformations that a value undergoes before being put in the sink
+* Put: The end of a pipeline, or the merging of multiple pipelines in a collector
+* Sink: The final destination in which rows are to be stored after their pipeline transformations
+
+## Example
 
 ```python
 from micdrop.pipeline import *
@@ -14,6 +25,7 @@ mysql = connect(**connection options)
 sink = MySqlTableInsertSink(mysql.cursor(), 'database', 'table')
 
 # Map straight across without any conversion
+# (The shift operator is overloaded to represent flow direction in the pipeline)
 source.take('FIELD NAME') >> sink.put('new_field_name')
 source.take('RECORD NUMBER') >> sink.put('id')
 # Do conversions with regular python functions or lambdas
@@ -30,12 +42,12 @@ def complicated_stuff(value):
         return 'not six'
 complicated_stuff >> sink.put('is_six')
 # Split values
-values = source.take('PIPE SEPARATED') >> lambda val: val.split('|')
+values = source.take('PIPE SEPARATED') >> SplitDelimited('|')
 values.take(0) >> sink.put('val1')
 values.take(1) >> sink.put('val2')
 values.take(2) >> sink.put('val3')
 # An alternate syntax to split values, for readability
-with source.take('PIPE SEPARATED') >> lambda val: val.split('|') as values:
+with source.take('PIPE SEPARATED') >> SplitDelimited('|') as values:
     values.take(0) >> sink.put('val1')
     values.take(1) >> sink.put('val2')
     values.take(2) >> sink.put('val3')
@@ -43,7 +55,7 @@ with source.take('PIPE SEPARATED') >> lambda val: val.split('|') as values:
 values = ListCollector()
 source.take('THING 1') >> values.put()
 source.take('THING 2') >> values.put()
-values >> (lambda l: ','.join(l)) >> sink.put('things')
+values >> JoinDelimited(',') >> sink.put('things')
 # The inverse syntax is also available and may be more readable in some circumstances
 # (But don't mix-and-match the two on the same line)
 values = ListCollector()

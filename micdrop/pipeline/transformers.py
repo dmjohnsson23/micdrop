@@ -115,10 +115,21 @@ class FormatBoolean(PipelineItem):
 
 
 class Lookup(PipelineItem):
-    def __init__(self, lookup_map):
+    def __init__(self, lookup_map, *, convert_keys=None):
+        """
+        :param lookup_map: The dictionary to use as a lookup
+        :param convert_keys: If provided, a callable that will be used to convert all lookup keys before
+            use. May be useful when typing is inconsistent or more flexible typing is needed.Set to None
+            to do no conversion.
+        """
+        if convert_keys is not None:
+            lookup_map = {convert_keys(key):value for key,value in lookup_map.items()}
+        self.convert_keys = convert_keys
         self.map = lookup_map
     
     def process(self, value):
+        if self.convert_keys is not None:
+            value = self.convert_keys(value)
         return self.map.get(value)
 
 class StringReplace(PipelineItem):

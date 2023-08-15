@@ -9,7 +9,7 @@ therefore safe from injection; this note refers mainly to column and table names
 You will probably want to use pooled connection to ensure you have enough connections. You will
 need separate connections for the source and sink if doing a MySQL-to-MySQL migrations, even
 if the databases are on the same server. You'll also need another separate connection to pass
-to any MySqlLazyLookupTable pipeline items you use, meaning you may need as many as three 
+to any LazyLookupTable pipeline items you use, meaning you may need as many as three 
 connections to ensure they don't clash with one another.
 """
 from ..source import Source
@@ -18,7 +18,7 @@ from ..pipeline import Lookup, PipelineItem
 from typing import Union
 from functools import lru_cache
 
-class MySqlSource(Source):
+class QuerySource(Source):
     """
     Source to pull from a specific MySql table
     """
@@ -53,7 +53,7 @@ class MySqlSource(Source):
 
 
 
-class MySqlTableSource(MySqlSource):
+class TableSource(QuerySource):
     """
     Source to pull from a specific MySql table
     """
@@ -76,9 +76,9 @@ class MySqlTableSource(MySqlSource):
 
 
 
-class MySqlTableInsertSink(Sink):
+class TableInsertSink(Sink):
     """
-    Sink to insert into a specific table. This should be much more performant than `MySqlTableSink`,
+    Sink to insert into a specific table. This should be much more performant than `TableSink`,
     but has fewer features.
     """
     def __init__(self, db_cursor, db_name, table_name):
@@ -126,11 +126,11 @@ class MySqlTableInsertSink(Sink):
         if buffer:
             self.db_cursor.executemany(query, buffer)
 
-class MySqlTableUpdateSink(Sink):
+class TableUpdateSink(Sink):
     """
     Update-only sink for when you know the relevant items already exist in the database. This
-    has more database round-trips than `MySqlTableInsertSink`, but still fewer than
-    `MySqlTableSink`.
+    has more database round-trips than `TableInsertSink`, but still fewer than
+    `TableSink`.
     """
     def __init__(self, db_cursor, db_name, table_name, key_column):
         """
@@ -162,20 +162,20 @@ class MySqlTableUpdateSink(Sink):
 
 
 
-class MySqlTableSink(Sink):
+class TableSink(Sink):
     """
     General sink for MySQL tables that can check if an item exists and intelligently merge items
-    in Python. Most use cases should be satisfied by the more efficient `MySqlTableInsertSink`
-    or `MySqlTableUpdateSink`; this class makes two database round-trips per row.
+    in Python. Most use cases should be satisfied by the more efficient `TableInsertSink`
+    or `TableUpdateSink`; this class makes two database round-trips per row.
     """
     pass
 
-class MySqlLookupTable(Lookup):
+class LookupTable(Lookup):
     """
     Pipeline item to look up a value in a table. This will fetch and store the entire lookup
     table in memory, so should only be used for relatively small lookup tables.
     """
-    def __init__(self, db_cursor, db_name, table_name, key_column, value_column):
+    def __init__(self, db_cursor, db_name, table_name, key_column, value_column, *, convert_keys=str):
         """
         :param db_cursor: A mysql-connector cursor object (This may be used immediately, not
             during pipeline processing, so it is safe to re-use the source or sink cursor)
@@ -185,16 +185,19 @@ class MySqlLookupTable(Lookup):
             injection; make sure it comes from a trusted source)
         :param key_column: The column that will be the key of the lookup table (must be unique)
         :param value_column: The column that will be the value of the lookup table
+        :param convert_keys: If provided, a callable that will be used to convert all lookup keys before
+            use. May be useful when typing is inconsistent or more flexible typing is needed.Set to None
+            to do no conversion.
         """
         query = f"""
             SELECT `{key_column}`, `{value_column}`
             FROM `{db_name}`.`{table_name}`
         """
         db_cursor.execute(query)
-        super().__init__(dict(db_cursor.fetchall()))
+        super().__init__(dict(db_cursor.fetchall()), convert_keys=convert_keys)
 
 
-class MySqlLazyLookupTable(PipelineItem):
+class LazyLookupTable(PipelineItem):
     """
     Pipeline item to look up a value in a table. Keeps a small LRU cache of results, but
     otherwise looks up values on-the-fly rather than fetching all at once and keeping
@@ -222,3 +225,32 @@ class MySqlLazyLookupTable(PipelineItem):
     def process(self, value):
         self.db_cursor.execute(self._query, (value,))
         return self.db_cursor.fetchall()[0][0]
+
+class Fetch(PipelineItem):
+    """
+    Pipeline item to fetch a row by ID, with some caching.
+    """
+    def __init__(self, db_cursor, db_name, table_name, key_column):
+        """
+        :param db_cursor: A mysql-connector cursor object (This is used during the pipeline,
+            so should be different from the cursor used in the source or sink.)
+        :param db_name: The name of the database to connect to (Not safe against SQL injection; 
+            make sure it comes from a trusted source)
+        :param table_name: The name of the table or view to pull data from (Not safe against SQL 
+            injection; make sure it comes from a trusted source)
+        :param key_column: The column that will be the key of the lookup table (must be unique)
+        """
+        self._query = f"""
+            SELECT *
+            FROM `{db_name}`.`{table_name}`
+            WHERE `{key_column}` = %s
+            LIMIT 1
+        """
+        self.db_cursor = db_cursor
+
+    @lru_cache(32)
+    def process(self, value):
+        self.db_cursor.execute(self._query, (value,))
+        row = self.db_cursor.fetchall()
+        if row:
+            return dict(zip(self.db_cursor.column_names, row))

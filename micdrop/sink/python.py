@@ -1,4 +1,5 @@
 from .base import Sink
+from types import SimpleNamespace
 __all__ = ('DictsSink', 'ObjectsSink', 'ObjectsSinkSetattr')
 
 class DictsSink(Sink):
@@ -15,11 +16,12 @@ class ObjectsSink(Sink):
     
     Good for testing, or for converting between two internal representations of the same data.
     """
-    def __init__(self, type=object):
+    def __init__(self, type:type=SimpleNamespace):
         """
         :param type: Optionally a type or type factory to get the objects to update. (Note that
         the object's __dict__ will be updated directly, bypassing properties)
         """
+        super().__init__()
         self._type = type
 
     def process(self, source, *args, **kwargs):
@@ -35,11 +37,12 @@ class ObjectsSinkSetattr(Sink):
     
     Good for testing, or for converting between two internal representations of the same data.
     """
-    def __init__(self, type=object):
+    def __init__(self, type:type=SimpleNamespace):
         """
         :param type: Optionally a type or type factory to get the objects to update. (Note that
         setattr will be called, meaning properties will be invoked)
         """
+        super().__init__()
         self._type = type
 
     def process(self, source, *args, **kwargs):

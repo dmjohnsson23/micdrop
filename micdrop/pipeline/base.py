@@ -1,5 +1,6 @@
 from __future__ import annotations
 __all__ = ('PipelineItem', 'PipelineSource', 'PipelineSink', 'Take', 'Call')
+from typing import Callable
 class PipelineSource:
     def get(self):
         raise NotImplementedError('PipelineSource.get must be overridden')
@@ -8,14 +9,7 @@ class PipelineSource:
         pass
 
     def __rshift__(self, next):
-        if isinstance(next, PipelineSink):
-            pass # Nothing to do
-        elif isinstance(next, type) and issubclass(next, PipelineSink):
-            next = next()
-        elif callable(next):
-            next = Call(next)
-        else:
-            raise TypeError(f"Can't use {type(next)} in conversion pipeline")
+        next = PipelineSink.create(next)
         next._prev = self
         return next
     
@@ -38,25 +32,45 @@ class PipelineSource:
 
     def __exit__(self, type, value, traceback):
         pass
+
+    @classmethod
+    def create(cls, item):
+        if isinstance(item, PipelineSource):
+            return item
+        elif hasattr(item, 'to_pipeline_item'):
+            return item.to_pipeline_item()
+        elif isinstance(item, type) and issubclass(item, PipelineSource):
+            return item()
+        elif callable(item):
+            return Call(item)
+        else:
+            raise TypeError(f"Can't use {type(item)} as a PipelineSource")
+
 class PipelineSink:
-    _prev: PipelineSource
+    _prev: PipelineSource = None
 
     def get(self):
         return self._prev.get()
 
     def __lshift__(self, prev):
-        if isinstance(prev, PipelineSource):
-            self._prev = prev
-        elif isinstance(prev, type) and issubclass(prev, PipelineSource):
-            self._prev = prev()
-        elif callable(prev):
-            self._prev = Call(prev)
-        else:
-            raise TypeError(f"Can't use {type(prev)} in conversion pipeline")
+        self._prev = PipelineSource.create(prev)
         return self._prev
     
     def reset(self):
         self._prev.reset()
+    
+    @classmethod
+    def create(cls, item):
+        if isinstance(item, PipelineSink):
+            return item
+        elif hasattr(item, 'to_pipeline_item'):
+            return item.to_pipeline_item()
+        elif isinstance(item, type) and issubclass(item, PipelineSink):
+            return item()
+        elif callable(item):
+            return Call(item)
+        else:
+            raise TypeError(f"Can't use {type(item)} as a PipelineSink")
 
 
 class PipelineItem(PipelineSource, PipelineSink):
@@ -89,7 +103,7 @@ class Take(PipelineItem):
 
 
 class Call(PipelineItem):
-    def __init__(self, function) -> None:
+    def __init__(self, function: Callable) -> None:
         self.function = function
     
     def process(self, value):
