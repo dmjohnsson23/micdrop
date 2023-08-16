@@ -7,7 +7,11 @@ from csv import DictReader, DictWriter
 from io import IOBase
 
 class CSVSource(Source):
+    """
+    Allows using a CSV file as a source. Uses `csv.DictReader` under the hood.
+    """
     def __init__(self, file, *, encoding=None, **csv_reader_options):
+        super().__init__()
         self._file = file
         self._encoding = encoding
         self._reader_opts = csv_reader_options
@@ -33,24 +37,30 @@ class CSVSource(Source):
         self._current_index = -1
     
     def close(self):
-        self.file.close()
+        self._file.close()
 
 
 class CSVSink(Sink):
+    """
+    Allows outputting to a CSV file as a sink. Uses `csv.DictWriter` under the hood.
+    """
     def __init__(self, file, *, encoding=None, **csv_writer_options):
+        super().__init__()
         self._file = file
         self._encoding = encoding
         self._writer_opts = csv_writer_options
         self._csv = None
     
-    def process(self, source):
+    def process(self, source, *, write_header=True):
         if not isinstance(self._file, IOBase):
             self._file = open(self._file, 'w', newline='', encoding=self._encoding)
         if 'fieldnames' not in self._writer_opts:
             self._writer_opts['fieldnames'] = self._puts.keys() 
         writer = DictWriter(self._file, **self._writer_opts)
-        writer.writeheader()
+        if write_header:
+            writer.writeheader()
         for row in super().process(source):
-            writer.write(row)
+            writer.writerow(row)
+            yield row
 
 

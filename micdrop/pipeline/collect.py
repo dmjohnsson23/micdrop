@@ -1,8 +1,5 @@
-from .base import PipelineSource, PipelineSink, PipelineItem
-__all__ = ('Put', 'CollectDict', 'CollectList', 'CollectArgsKwargs', 'CollectFormatString', 'CollectCall', 'CollectValueOther')
-
-class Put(PipelineSink):
-    pass
+from .base import PipelineSource, Put, PipelineItem
+__all__ = ('CollectDict', 'CollectList', 'CollectArgsKwargs', 'CollectFormatString', 'CollectCall', 'CollectValueOther')
 
 class CollectDict(PipelineSource):
     _dict: dict = None
@@ -135,7 +132,7 @@ class CollectCall(CollectArgsKwargs):
         if self._value is None:
             args, kwargs = super().get()
             self._value = self.func(*args, **kwargs)
-        return self.value
+        return self._value
     
     def reset(self):
         super().reset()

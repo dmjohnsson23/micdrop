@@ -78,10 +78,11 @@ class TestPipeline(unittest.TestCase):
             self.assertEqual(one, 1)
             self.assertEqual(two, 2)
             self.assertEqual(three, 3)
+            return one + two + three
         StaticSource(1) >> collect.put()
         StaticSource(3) >> collect.put('three')
         StaticSource(2) >> collect.put('two')
-        
+        self.assertEqual(6, collect.get())
     
     def test_list_join_split(self):
         from functools import partial
@@ -156,6 +157,23 @@ class TestPipeline(unittest.TestCase):
         sink2.reset()
         self.assertEqual(sink1.get(), '5')
         self.assertEqual(sink2.get(), 15.0)
+    
+    def test_skip_row(self):
+        source = IterableSource(range(5))
+        with source >> Choose() as choice:
+            SkipRow() >> (choice.value == 2)
+            source >> choice.fallback()
+            self.assertEqual(choice.get(), 0)
+            choice.reset()
+            self.assertEqual(choice.get(), 1)
+            choice.reset()
+            from micdrop.exceptions import SkipRow as SkipRowException
+            with self.assertRaises(SkipRowException):
+                choice.get()
+            choice.reset()
+            self.assertEqual(choice.get(), 3)
+            choice.reset()
+            self.assertEqual(choice.get(), 4)
 
 
 class TestSourceSink(unittest.TestCase):
@@ -283,4 +301,19 @@ class TestSourceSink(unittest.TestCase):
                 {'f_name': 'Perrin', 'l_name': 'Aybara'},
                 {'race': 'Human', 'occupation': 'Blacksmith'},
             ],
+        ])
+    
+
+    def test_skip_row(self):
+        source = DictsSource(self.test_data_1)
+        sink = DictsSink()
+
+        source.take('f_name') >> sink.put('f_name')
+        with source.take('race') >> Choose() as choice:
+            source.take('occupation') >> (choice.value == 'Human')
+            SkipRow() >> choice.fallback()
+            choice >> sink.put('occupation')
+        self.assertEqual(sink.process_all(source, True), [
+            {'f_name': 'Peter', 'occupation': 'Photographer'},
+            {'f_name': 'Perrin', 'occupation': 'Blacksmith'},
         ])

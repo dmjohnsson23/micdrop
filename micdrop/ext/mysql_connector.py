@@ -253,4 +253,4 @@ class Fetch(PipelineItem):
         self.db_cursor.execute(self._query, (value,))
         row = self.db_cursor.fetchall()
         if row:
-            return dict(zip(self.db_cursor.column_names, row))
+            return dict(zip(self.db_cursor.column_names, row[0]))

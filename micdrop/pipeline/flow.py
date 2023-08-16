@@ -1,9 +1,10 @@
 from __future__ import annotations
 from typing import Callable
-from .base import PipelineItem, PipelineSource, PipelineSink
-from .collect import Put, TakeArgsKwargs
+from .base import Put, PipelineItem, PipelineSource, PipelineSink
+from .collect import TakeArgsKwargs
 from ..utils import DeferredOperand
-__all__ = ('Choose', 'Branch', 'Coalesce')
+from ..exceptions import SkipRow as SkipRowException, StopProcessing as StopProcessingException
+__all__ = ('Choose', 'Branch', 'Coalesce', 'SkipRow', 'StopProcessing')
 
 class Choose(PipelineItem):
     """
@@ -219,8 +220,8 @@ class Coalesce(PipelineSource):
     """
     _value = None
     _cached = False
-    def __init__(self):
-        self._puts = []
+    def __init__(self, *pipelines:PipelineSource):
+        self._puts = [item >> Put() for item in pipelines]
     
     def get(self):
         if not self._cached:
@@ -244,3 +245,24 @@ class Coalesce(PipelineSource):
         put = Put()
         self._puts.append(put)
         return put
+
+class SkipRow(PipelineSource):
+    """
+    Used with a `Choice` or `Branch` to skip the current row (e.g. if the source data represents something not supported in the target sink)
+
+    Example::
+
+        # This will only process rows where ``switch_me == 'good'``
+        with source.take('switch_me') >> Choice() as choice:
+            choice >> (choice.value == 'good')
+            SkipRow >> choice.fallback()
+    """
+    def get(self):
+        raise SkipRowException()
+    
+class StopProcessing(PipelineSource):
+    """
+    Used with a `Choice` or `Branch` to cleanly stop processing (e.g. this and all future rows will be skipped)
+    """
+    def get(self):
+        raise StopProcessingException()

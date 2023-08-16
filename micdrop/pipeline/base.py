@@ -1,5 +1,5 @@
 from __future__ import annotations
-__all__ = ('PipelineItem', 'PipelineSource', 'PipelineSink', 'Take', 'Call')
+__all__ = ('PipelineItem', 'PipelineSource', 'PipelineSink', 'Put', 'Take', 'Call')
 from typing import Callable
 class PipelineSource:
     def get(self):
@@ -21,11 +21,11 @@ class PipelineSource:
         func._prev = self
         return func
 
-    def take(self, key) -> PipelineSource:
+    def take(self, key, safe=False) -> PipelineSource:
         """
         Take a sub-value from the pipeline; used to split fields or destructure data.
         """
-        return self >> Take(key)
+        return self >> Take(key, safe)
     
     def __enter__(self):
         return self
@@ -91,15 +91,27 @@ class PipelineItem(PipelineSource, PipelineSink):
         self._is_cached = False
         self._prev.reset()
 
+class Put(PipelineSink):
+    pass
 
 class Take(PipelineItem):
-    _key = None
+    key = None
 
-    def __init__(self, key):
-        self._key = key
+    def __init__(self, key, safe=False):
+        self.key = key
+        self.safe = safe
     
     def get(self):
-        return self._prev.get()[self._key]
+        value = self._prev.get()
+        if value is None:
+            return None
+        if self.safe:
+            return
+        try:
+            return value[self.key]
+        except KeyError:
+            if not self.safe:
+                raise
 
 
 class Call(PipelineItem):

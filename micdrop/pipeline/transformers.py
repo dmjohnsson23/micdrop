@@ -1,10 +1,37 @@
 """
 Collection of pipeline items that perform various transformation
 """
-__all__ = ('ParseDatetime', 'FormatDatetime', 'ParseDate', 'FormatDate', 'ParseBoolean', 'FormatBoolean', 'Lookup', 'StringReplace', 'Default')
+__all__ = ('ConvertDatetime', 'ParseDatetime', 'FormatDatetime', 'ParseDate', 'FormatDate', 'ParseBoolean', 'FormatBoolean', 'Lookup', 'StringReplace', 'Default')
 
 from .base import PipelineItem
     
+class ConvertDatetime(PipelineItem):
+    def __init__(self, in_format='%Y-%m-%d %H:%I:%S', out_format='%Y-%m-%d %H:%I:%S', in_zero_date=False, out_zero_date=False):
+        """
+        Convert a string from one date/time format to another
+
+        :param in_format: The format string to use when interpreting
+        :param out_format: The format string to use when formatting
+        :param in_zero_date: If "zero dates" exist that should be converted to `None`, e.g. "0000-00-00 00:00:00"
+        :param out_zero_date: If `None` should be converted into a "zero date", e.g. "0000-00-00 00:00:00"
+        """
+        self._in_format = in_format
+        self._in_zero_date = in_zero_date
+        self._out_format = out_format
+        self._out_zero_date = out_zero_date
+    
+    def process(self, value):
+        from datetime import datetime
+        if self._in_zero_date:
+            if value == datetime(2000, 2, 2, 2, 2, 2).strftime(self._in_format).replace('2', '0'):
+                value = None
+        if value is None and self._out_zero_date:
+            return datetime(2000, 2, 2, 2, 2, 2).strftime(self._out_format).replace('2', '0')
+        elif value is None:
+            return None
+        else:
+            return datetime.strptime(value, self._in_format).strftime(self._out_format)
+
 class ParseDatetime(PipelineItem):
     def __init__(self, format='%Y-%m-%d %H:%I:%S', zero_date=False):
         """
@@ -19,8 +46,7 @@ class ParseDatetime(PipelineItem):
     def process(self, value):
         from datetime import datetime
         if self._zero_date:
-            zero_time = datetime(2000, 2, 2, 2, 2, 2).strftime(self._format).replace('2', '0')
-            if value == zero_time:
+            if value == datetime(2000, 2, 2, 2, 2, 2).strftime(self._format).replace('2', '0'):
                 return None
         if value is not None:
             return datetime.strptime(value, self._format)
@@ -38,10 +64,8 @@ class FormatDatetime(PipelineItem):
     
     def process(self, value):
         from datetime import datetime
-        if self._zero_date:
-            zero_time = datetime(2000, 2, 2, 2, 2, 2).strftime(self._format).replace('2', '0')
-            if value is None:
-                return zero_time
+        if self._zero_date and  value is None:
+            return datetime(2000, 2, 2, 2, 2, 2).strftime(self._format).replace('2', '0')
         if value is not None:
             return value.strftime(self._format)
     

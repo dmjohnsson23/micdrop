@@ -1,6 +1,9 @@
 from .base import Sink
 from types import SimpleNamespace
-__all__ = ('DictsSink', 'ObjectsSink', 'ObjectsSinkSetattr')
+from typing import Callable
+from collections import namedtuple
+
+__all__ = ('DictsSink', 'ObjectsSink', 'ObjectsSinkSetattr', 'NamedTuplesSink', 'CallSink')
 
 class DictsSink(Sink):
     """
@@ -51,3 +54,33 @@ class ObjectsSinkSetattr(Sink):
             for k, v in data.items():
                 setattr(obj, k, v)
             yield obj
+
+class NamedTuplesSink(Sink):
+    """
+    A sink that will return the results as an iterable of namedtuple objects.
+    
+    Good for testing, or for converting between two internal representations of the same data.
+    """
+
+    def process(self, source, *args, typename='SinkOutput', **kwargs):
+        nt = namedtuple(typename, self._puts.keys())
+        for data in super().process(source, *args, **kwargs):
+            yield nt(**data)
+
+class CallSink(Sink):
+    """
+    A sink that will call a given function with the values of each iteration
+    
+    Good for testing, or for converting between two internal representations of the same data,
+    populating dataclasses, or creating simple custom sinks.
+    """
+    def __init__(self, function:Callable):
+        """
+        :param func: The function to which to pass all of the values each iteration
+        """
+        super().__init__()
+        self.function = function
+
+    def process(self, source, *args, **kwargs):
+        for data in super().process(source, *args, **kwargs):
+            yield self.function(**data)
