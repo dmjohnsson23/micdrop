@@ -2,6 +2,23 @@ from .base import PipelineSource, Put, PipelineItem
 __all__ = ('CollectDict', 'CollectList', 'CollectArgsKwargs', 'CollectArgsKwargsTakeMixin', 'CollectFormatString', 'CollectCall', 'CollectValueOther')
 
 class CollectDict(PipelineSource):
+    """
+    Collect multiple pipelines into a dict
+
+    Examples::
+
+        # Context Manager Syntax
+        with CollectDict() as collect:
+            source.take('thing1') >> collect.put('thing1')
+            source.take('thing2') >> collect.put('thing2')
+            collect >> sink.put('things')
+
+        # Callable Syntax
+        CollectDict(
+            thing1 = source.take('thing1'),
+            thing2 = source.take('thing2'),
+        ) >> sink.put('things')
+    """
     _dict: dict = None
     def __init__(self, **pipelines:PipelineSource):
         self._puts = {key: item >> Put() for key, item in pipelines.items()}
@@ -23,6 +40,23 @@ class CollectDict(PipelineSource):
 
 
 class CollectList(PipelineSource):
+    """
+    Collect multiple pipelines into a list
+
+    Examples::
+
+        # Context Manager Syntax
+        with CollectList() as collect:
+            source.take('thing1') >> collect.put()
+            source.take('thing2') >> collect.put()
+            collect >> sink.put('things')
+
+        # Callable Syntax
+        CollectList(
+            source.take('thing1'),
+            source.take('thing2'),
+        ) >> sink.put('things')
+    """
     _list: list = None
     def __init__(self, *pipelines:PipelineSource):
         self._puts = [item >> Put() for item in pipelines]
@@ -101,7 +135,24 @@ class TakeArgsKwargs(PipelineItem):
 
 class CollectFormatString(CollectArgsKwargs):
     """
-    Collector that allows using put operations to populate fields in a format string
+    Collector that allows using put operations to populate fields in a format string.
+
+    Keyword values are added with ``collect_fstr.put('arg_name')``, positional values are added 
+    with ``collect_fstr.put()``. You are free to mix-and-match the two.
+
+    Examples::
+
+        # Context Manager Syntax
+        with CollectFormatString("Does {person} like {thing}?") as collect:
+            source.take('person') >> collect.put('person')
+            source.take('thing') >> collect.put('thing')
+            collect >> sink.put('question')
+        
+        # Callable Syntax
+        CollectFormatString("Does {person} like {thing}?"
+            person = source.take('person'),
+            thing = source.take('thing'),
+        ) >> sink.put('question')
     """
     _value = None
     def __init__(self, format_string:str, *args, **kwargs):
@@ -121,7 +172,37 @@ class CollectFormatString(CollectArgsKwargs):
 
 class CollectCall(CollectArgsKwargs):
     """
-    Collector that allows using put operations to populate arguments to a function or callable
+    Collector that allows using put operations to populate arguments to a function or callable.
+
+    Keyword args are added with ``collect_call.put('arg_name')``, positional args are added with
+    ``collect_call.put()``. You are free to mix-and-match the two.
+
+    Examples (using three different equivalent syntaxes)::
+
+        # Decorator syntax
+        @CollectCall
+        def do_things(thing1, thing2):
+            return thing1 + thing2
+        source.take('thing1') >> do_things.put('thing1')
+        source.take('thing2') >> do_things.put('thing2')
+        do_things >> sink.put('things')
+
+        # Context Manager Syntax  
+        def do_things(thing1, thing2):
+            return thing1 + thing2
+        with CollectCall(do_things) as collect:
+            source.take('thing1') >> collect.put()
+            source.take('thing2') >> collect.put()
+            collect >> sink.put('things')
+        
+        # Callable syntax
+        def do_things(thing1, thing2):
+            return thing1 + thing2
+        CollectCall(do_things,
+            thing1 = source.take('thing1'),
+            thing2 = source.take('thing2'),
+        ) >> sink.put('things')
+
     """
     _value = None
     def __init__(self, func, *args, **kwargs):

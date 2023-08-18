@@ -67,8 +67,21 @@ with ListCollector() as values:
     source.take('THING 1') >> values.put()
     source.take('THING 2') >> values.put()
     values >> (lambda l: ','.join(l)) >> sink.put('things')
+# Some additional syntactic sugar makes each of the following sets of lines equivalent:
+source.get('LAMBDAS') >> (lambda val: val) >> sink.put('lambdas')
+source.get('LAMBDAS') >> Call(lambda val: val) >> sink.put('lambdas')
+source.get('FUNCTIONS') >> some_func >> sink.put('functions')
+source.get('FUNCTIONS') >> Call(some_func) >> sink.put('functions')
+source.get('FORMAT STRINGS') >> "<p>{}</p>" >> sink.put('format_strings')
+source.get('FORMAT STRINGS') >> Call("<p>{}</p>".format) >> sink.put('format_strings')
+source.get('LOOKUP MAPPINGS') >> {'a':1, 'b':2} >> sink.put('lookup_mappings')
+source.get('LOOKUP MAPPINGS') >> Lookup({'a':1, 'b':2}) >> sink.put('lookup_mappings')
 
 # Import data from the source to the sink 
 # (keyword arguments may differ from one sink type to another)
 sink.process_all(source, on_duplicate_update=True)
 ```
+
+## Extensibility
+
+This library is designed for extensibility. Your can write your own sinks, sources, or pipeline items by extending `sink.Sink`, `source.Source`, and `pipeline.PipelineItem` respectively. You can also allow arbitrary classes to be used as pipeline items if you implement a method named `to_pipeline_source`, `to_pipeline_item`, or `to_pipeline_sink`.

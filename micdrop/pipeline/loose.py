@@ -12,10 +12,15 @@ class LooseSink(PipelineSink):
     """
     pass
 
+
 class FactorySource(PipelineSource):
     """
     A source that calls the given factory function each iteration to get a value, rather than pulling
     from the primary source. Useful to supply values that do not exist in the original data.
+
+    Example::
+
+        FactorySource(time_ns) >> sink.put('name')
     """
     _value = None
     _is_cached = False
@@ -33,10 +38,15 @@ class FactorySource(PipelineSource):
         self._value = None
         self._is_cached = False
 
+
 class StaticSource(PipelineSource):
     """
-    A source that supplies the same value every iteration. Useful to supply values that do not exist in the 
-    original data.
+    A source that supplies the same value every iteration. Useful to supply values that do not exist 
+    in the original data.
+
+    Example::
+
+        StaticSource('Other') >> sink.put('type')
     """
     def __init__(self, value) -> None:
         self._value = value
@@ -44,10 +54,16 @@ class StaticSource(PipelineSource):
     def get(self):
         return self._value
     
+
 class IterableSource(PipelineSource):
     """
-    A source that supplies a value from an iterable The iterable must be as long as, or longer than, the number 
-    of records in the main source. Useful to supply values that do not exist in the original data.
+    A source that supplies a value from an iterable The iterable must be as long as, or longer than,  
+    the number of records in the main source. Useful to supply values that do not exist in the
+    original data.
+
+    Example::
+
+        IterableSource(range(99)) >> sink.put('id')
     """
     _value = None
     _is_cached = False

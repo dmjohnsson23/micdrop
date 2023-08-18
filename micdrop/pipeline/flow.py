@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Callable
 from .base import Put, PipelineItem, PipelineSource, PipelineSink
-from .collect import TakeArgsKwargs
+from .collect import CollectArgsKwargsTakeMixin
 from ..utils import DeferredOperand
 from ..exceptions import SkipRow as SkipRowException, StopProcessing as StopProcessingException
 __all__ = ('Choose', 'Branch', 'Coalesce', 'SkipRow', 'StopProcessing')
@@ -190,28 +190,16 @@ class Branch(PipelineSink):
     def __exit__(self, type, value, traceback):
         pass
 
-class BranchCase(PipelineSource):
+class BranchCase(CollectArgsKwargsTakeMixin, PipelineSource):
     def __init__(self, branch:Branch):
         self._branch = branch
-        self._auto_key = 0
     
     def get(self):
         return self._branch.get(self)
     
-    def take(self, key=None) -> PipelineSource:
-        """
-        Take a sub-value from the pipeline; used to split fields or destructure data.
-        """
-        if key is None:
-            key = self._auto_key
-            self._auto_key += 1
-        return self >> TakeArgsKwargs(key)
-    
     def reset(self):
         super().reset()
         self._branch.reset()
-    
-
 
 
 class Coalesce(PipelineSource):
@@ -246,6 +234,7 @@ class Coalesce(PipelineSource):
         self._puts.append(put)
         return put
 
+
 class SkipRow(PipelineSource):
     """
     Used with a `Choice` or `Branch` to skip the current row (e.g. if the source data represents something not supported in the target sink)
@@ -259,6 +248,7 @@ class SkipRow(PipelineSource):
     """
     def get(self):
         raise SkipRowException()
+
     
 class StopProcessing(PipelineSource):
     """
