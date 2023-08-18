@@ -1,5 +1,5 @@
 from .base import PipelineSource, Put, PipelineItem
-__all__ = ('CollectDict', 'CollectList', 'CollectArgsKwargs', 'CollectFormatString', 'CollectCall', 'CollectValueOther')
+__all__ = ('CollectDict', 'CollectList', 'CollectArgsKwargs', 'CollectArgsKwargsTakeMixin', 'CollectFormatString', 'CollectCall', 'CollectValueOther')
 
 class CollectDict(PipelineSource):
     _dict: dict = None
@@ -50,7 +50,6 @@ class CollectArgsKwargs(PipelineSource):
     def __init__(self, *args_pipelines:PipelineSource, **kwargs_pipelines:PipelineSource):
         self._args = [item >> Put() for item in args_pipelines]
         self._kwargs = {key: item >> Put() for key, item in kwargs_pipelines.items()}
-        self._auto_key = 0
     
     def get(self):
         return (
@@ -66,6 +65,15 @@ class CollectArgsKwargs(PipelineSource):
             self._kwargs[key] = put
         return put
     
+    
+    def reset(self):
+        for put in self._args:
+            put.reset()
+        for put in self._kwargs.values():
+            put.reset()
+
+class CollectArgsKwargsTakeMixin:
+    _auto_key = 0
     def take(self, key=None) -> PipelineSource:
         """
         Take a sub-value from the pipeline; used to split fields or destructure data.
@@ -75,22 +83,14 @@ class CollectArgsKwargs(PipelineSource):
             self._auto_key += 1
         return self >> TakeArgsKwargs(key)
     
-    def reset(self):
-        for put in self._args:
-            put.reset()
-        for put in self._kwargs.values():
-            put.reset()
-
 class TakeArgsKwargs(PipelineItem):
     _key = None
 
     def __init__(self, key):
         self._key = key
-        self._auto_key = 0
     
     def reset(self):
         super().reset()
-        self._auto_key = 0
     
     def get(self):
         args, kwargs = self._prev.get()

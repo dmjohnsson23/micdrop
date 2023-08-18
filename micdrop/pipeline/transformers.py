@@ -159,6 +159,20 @@ class Lookup(PipelineItem):
 class StringReplace(PipelineItem):
     pass #TODO
 
+class Slice(PipelineItem):
+    def __init__(self, start, stop, step=None):
+        self.start = start
+        self.stop = stop
+        self.step = step
+    
+    def process(self, value):
+        if value is None:
+            return None
+        if self.step is None:
+            return value[self.start:self.stop]
+        else:
+            return value[self.start:self.stop:self.step]
+
 class Default(PipelineItem):
     def __init__(self, value):
         self.value = value
