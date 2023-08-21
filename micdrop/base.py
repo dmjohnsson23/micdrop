@@ -1,5 +1,5 @@
 from __future__ import annotations
-__all__ = ('PipelineItem', 'Source', 'PipelineSink', 'Put', 'Take', 'TakeAttr', 'Call', 'CallMethod')
+__all__ = ('PipelineItem', 'Source', 'Put', 'Take', 'TakeAttr', 'Call', 'CallMethod')
 from typing import Callable
 
 
@@ -50,7 +50,7 @@ class Source:
         return True
 
     def __rshift__(self, next):
-        next = PipelineSink.create(next)
+        next = Put.create(next)
         next._prev = self
         return next
     
@@ -109,7 +109,7 @@ class Source:
             return PipelineItem.create(item)
 
 
-class PipelineSink:
+class Put:
     _prev: Source = None
     _reset_idempotency = None
 
@@ -135,7 +135,7 @@ class PipelineSink:
 
     @classmethod
     def create(cls, item):
-        if isinstance(item, PipelineSink):
+        if isinstance(item, Put):
             return item
         elif hasattr(item, 'to_pipeline_sink'):
             return item.to_pipeline_sink()
@@ -143,7 +143,7 @@ class PipelineSink:
             return PipelineItem.create(item)
 
 
-class PipelineItem(PipelineSink, Source):
+class PipelineItem(Put, Source):
     _value = None
     _is_cached = False
 
@@ -166,7 +166,7 @@ class PipelineItem(PipelineSink, Source):
             return item
         elif hasattr(item, 'to_pipeline_item'):
             return item.to_pipeline_item()
-        elif isinstance(item, type) and issubclass(item, PipelineSink):
+        elif isinstance(item, type) and issubclass(item, Put):
             return item()
         elif isinstance(item, dict):
             from .transformers import Lookup
@@ -177,9 +177,6 @@ class PipelineItem(PipelineSink, Source):
             return Call(item)
         else:
             raise TypeError(f"Can't use {type(item)} as a PipelineItem")
-
-class Put(PipelineSink):
-    pass
 
 
 class Take(PipelineItem):

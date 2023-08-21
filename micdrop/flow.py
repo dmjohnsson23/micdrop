@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Callable
-from .base import Put, PipelineItem, Source, PipelineSink
+from .base import Put, PipelineItem, Source
 from .collect import CollectArgsKwargsTakeMixin
 from .utils import DeferredOperand
 from .exceptions import SkipRow as SkipRowException, StopProcessing as StopProcessingException
@@ -77,7 +77,7 @@ class Choose(PipelineItem):
         """
         return self.check(lambda _: True)
 
-class Branch(PipelineSink):
+class Branch(Put):
     """
     Redirect put values down different pipelines, based on the value of some conditional pipeline.
 

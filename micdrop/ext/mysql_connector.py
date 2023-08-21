@@ -12,9 +12,10 @@ if the databases are on the same server. You'll also need another separate conne
 to any LazyLookupTable pipeline items you use, meaning you may need as many as three 
 connections to ensure they don't clash with one another.
 """
-from ..source import Source
+from ..base import Source, PipelineItem
 from ..sink import Sink
-from ..pipeline import Lookup, PipelineItem, CollectArgsKwargs
+from ..transformers import Lookup
+from ..collect import CollectArgsKwargs
 from typing import Union
 from functools import lru_cache
 

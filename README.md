@@ -4,11 +4,14 @@ Extensible framework/library to migrate data from source to another using a decl
 
 ## Terminology
 
-* Source: A source of data to be transformed, consisting of multiple rows
-* Row: A single object in a source (Could be a literal Python object, a row of a CSV file or relational database table, etc... )
-* Take: The beginning of a pipeline, which expects to receive a single value from each row in the source; or a branch in a pipeline
-* Pipeline: A series of transformations that a value undergoes before being put in the sink
-* Put: The end of a pipeline, or the merging of multiple pipelines in a collector
+* Source: A source of data to be transformed by additional pipeline items (all Pipeline Items are also Sources)
+* Origin: The Source at the beginning of a pipeline, usually consisting of multiple Rows to be run through the pipeline
+* Row: A single object in a Source, usually referring to the values output from the Origin (Could be a literal Python object, a row of a CSV file or relational database table, etc... )
+* Take: Extracts a single value from a composite Source; either from the Origin, or at diverging pipelines
+* Pipeline: A series of transformations that a value undergoes before being put in the Sink
+* Pipeline Item: An object that is both a Source and a Put (e.g. it accepts some value, and outputs another value according to internal rules)
+* Put: The end of a pipeline, or the merging of multiple pipelines in a Collector
+* Collector: A pipeline convergence that accepts Puts and acts as a Source
 * Sink: The final destination in which rows are to be stored after their pipeline transformations
 
 ## Example
@@ -94,8 +97,7 @@ This library is designed for extensibility. Your can write your own sinks, sourc
 
 * Pipelines should function as reusable segments without needing the `PipelineSegment` class
     * Have do find a way to do this without breaking the cache/next mechanism, which I don't think we can do without
-* Unify `pipeline.PipelineSource` with `source.source` and `pipeline.PipelineSink` with `sink.Sink`
-    * This should provide a way for "composable" sources and sinks and hopefully simplify the codebase
+    * Maybe just always implicitly use `PipelineSegment`? (Would probably work, though the idempotency tokens could turn into quite the nasty mess of nested tuples)
 * Generic "files" source/sink
     * Probably would need subclassed to be useful (e.g. to parse the files), but could provide the base for the XML classes below
 * XML extension using ElementTree

@@ -1,17 +1,9 @@
 """
 A collection of pipeline items that are "loose ends", e.g. either do not pull from a source or output to a sink
 """
-__all__ = ('LooseSink', 'FactorySource', 'StaticSource', 'IterableSource')
+__all__ = ('FactorySource', 'StaticSource', 'IterableSource')
 
-from .base import PipelineSink, Source
-
-class LooseSink(PipelineSink):
-    """
-    A "loose" sink not bound to the main sink. You can use this get get transitory data that may be 
-    useful during processing but which does not need to be saved in the final output.
-    """
-    pass
-
+from .base import Source
 
 class FactorySource(Source):
     """

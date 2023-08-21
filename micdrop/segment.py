@@ -1,6 +1,6 @@
 from __future__ import annotations
-from .base import PipelineItem, PipelineSink, Source, Call
-
+from .base import PipelineItem, Put, Source, Call
+__all__ = ('ProxySource', 'PipelineSegment', 'AppliedPipelineSegment')
 
 class ProxySource(Source):
     """
@@ -23,12 +23,12 @@ class PipelineSegment:
     """
     _inlet_proxy = ProxySource = None
     _inlet: Source = None
-    _outlet: PipelineSink = None
+    _outlet: Put = None
     _apply_counter: int = 0
 
     def __rshift__(self, next):
         if self._outlet is None:
-            next = PipelineSink.create(next)
+            next = Put.create(next)
             self.set_inlet(next)
             self.set_outlet(next)
         else:
@@ -65,13 +65,13 @@ class PipelineSegment:
         self._inlet = inlet
         self._inlet_proxy = proxy
     
-    def set_outlet(self, outlet: PipelineSink):
+    def set_outlet(self, outlet: Put):
         """
         Manually set the outlet of this pipeline segment. 
         
         This should rarely be used under normal circumstances, but may be necessary for more complex branching pipelines.
         """
-        outlet = PipelineSink.create(outlet)
+        outlet = Put.create(outlet)
         self._outlet = outlet
     
     def apply(self) -> AppliedPipelineSegment:

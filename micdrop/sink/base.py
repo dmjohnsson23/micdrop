@@ -1,9 +1,14 @@
 from __future__ import annotations
-from ..base import Put
+from ..base import Put, Put
 from ..exceptions import StopProcessing, SkipRow
 __all__ = ('Sink',)
 
 class Sink:
+    """
+    The base Sink class. Does nothing with put values, other than output the collected dict via `process`.
+
+    Generally you won't use this directly, only as a base for implementing other sinks.
+    """
     def __init__(self) -> None:
         self._puts = {}
         self._null_puts = []

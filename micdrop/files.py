@@ -31,11 +31,12 @@ class WriteFile(PipelineItem):
         with open(name, 'wb' if is_binary else 'w') as file:
             file.write(value)
         return name
-
-
-
+    
 
 class _FilePipelineItemBase2(PipelineItem):
+    """
+    Base class for 2-file operations (move, copy)
+    """
     def __init__(self, from_dir: str, to_dir: str, name_pipeline:Source = None):
         self.load_dir = from_dir
         self.save_dir = to_dir

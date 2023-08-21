@@ -6,12 +6,12 @@ from micdrop.sink import *
 
 class TestPipeline(unittest.TestCase):
     def test_loose(self):
-        pipeline = StaticSource(5) >> LooseSink()
+        pipeline = StaticSource(5) >> Put()
         pipeline.idempotent_next(0)
         self.assertEqual(pipeline.get(), 5, 'Get static value')
         pipeline.idempotent_next(1)
         self.assertEqual(pipeline.get(), 5, 'Get same static value after next')
-        pipeline = IterableSource(range(5)) >> LooseSink()
+        pipeline = IterableSource(range(5)) >> Put()
         pipeline.idempotent_next(0)
         self.assertEqual(pipeline.get(), 0, 'Get iterable value')
         pipeline.idempotent_next(1)
@@ -22,34 +22,34 @@ class TestPipeline(unittest.TestCase):
             nonlocal expected_value
             expected_value += 1
             return expected_value
-        pipeline = factory >> LooseSink()
+        pipeline = factory >> Put()
         pipeline.idempotent_next(0)
         self.assertEqual(pipeline.get(), 10, 'Get factory value')
         pipeline.idempotent_next(1)
         self.assertEqual(pipeline.get(), 11, 'Get different factory value after next')
 
     def test_basic_type_conversions(self):
-        pipeline = StaticSource('5') >> int >> LooseSink()
+        pipeline = StaticSource('5') >> int >> Put()
         self.assertEqual(pipeline.get(), 5, 'Convert to int')
-        pipeline = StaticSource('5.5') >> float >> LooseSink()
+        pipeline = StaticSource('5.5') >> float >> Put()
         self.assertEqual(pipeline.get(), 5.5, 'Convert to float')
-        pipeline = StaticSource(25) >> str >> LooseSink()
+        pipeline = StaticSource(25) >> str >> Put()
         self.assertEqual(pipeline.get(), '25', 'Convert to str')
     
     def test_destructure_dict(self):
         source = StaticSource({'a':1, 'b':2, 'c':3})
-        a = source.take('a') >> LooseSink()
-        b = source.take('b') >> LooseSink()
-        c = source.take('c') >> LooseSink()
+        a = source.take('a') >> Put()
+        b = source.take('b') >> Put()
+        c = source.take('c') >> Put()
         self.assertEqual(a.get(), 1, 'Destructure dict')
         self.assertEqual(b.get(), 2, 'Destructure dict')
         self.assertEqual(c.get(), 3, 'Destructure dict')
     
     def test_destructure_list(self):
         source = StaticSource([1, 2, 3])
-        a = source.take(0) >> LooseSink()
-        b = source.take(1) >> LooseSink()
-        c = source.take(2) >> LooseSink()
+        a = source.take(0) >> Put()
+        b = source.take(1) >> Put()
+        c = source.take(2) >> Put()
         self.assertEqual(a.get(), 1, 'Destructure list')
         self.assertEqual(b.get(), 2, 'Destructure list')
         self.assertEqual(c.get(), 3, 'Destructure list')

@@ -1,7 +1,7 @@
 """
 Extension integrating with the csv module in the python standard library.
 """
-from ..source import Source
+from ..base import Source
 from ..sink import Sink
 from csv import DictReader, DictWriter
 from io import IOBase
