@@ -1,7 +1,7 @@
-from .base import PipelineSource, Put, PipelineItem
+from .base import Source, Put, PipelineItem
 __all__ = ('CollectDict', 'CollectList', 'CollectArgsKwargs', 'CollectArgsKwargsTakeMixin', 'CollectFormatString', 'CollectCall', 'CollectValueOther')
 
-class CollectDict(PipelineSource):
+class CollectDict(Source):
     """
     Collect multiple pipelines into a dict
 
@@ -20,7 +20,7 @@ class CollectDict(PipelineSource):
         ) >> sink.put('things')
     """
     _dict: dict = None
-    def __init__(self, **pipelines:PipelineSource):
+    def __init__(self, **pipelines:Source):
         self._puts = {key: item >> Put() for key, item in pipelines.items()}
     
     def get(self):
@@ -28,10 +28,13 @@ class CollectDict(PipelineSource):
             self._dict = {key: put.get() for key, put in self._puts.items()}
         return self._dict
     
-    def reset(self):
+    def next(self):
         self._dict = None
+
+    def idempotent_next(self, idempotency_counter):
+        super().idempotent_next(idempotency_counter)
         for put in self._puts.values():
-            put.reset()
+            put.idempotent_next(idempotency_counter)
     
     def put(self, key):
         put = Put()
@@ -39,7 +42,7 @@ class CollectDict(PipelineSource):
         return put
 
 
-class CollectList(PipelineSource):
+class CollectList(Source):
     """
     Collect multiple pipelines into a list
 
@@ -58,7 +61,7 @@ class CollectList(PipelineSource):
         ) >> sink.put('things')
     """
     _list: list = None
-    def __init__(self, *pipelines:PipelineSource):
+    def __init__(self, *pipelines:Source):
         self._puts = [item >> Put() for item in pipelines]
     
     def get(self):
@@ -66,10 +69,13 @@ class CollectList(PipelineSource):
             self._list = [put.get() for put in self._puts]
         return self._list
     
-    def reset(self):
+    def next(self):
         self._list = None
+
+    def idempotent_next(self, idempotency_counter):
+        super().idempotent_next(idempotency_counter)
         for put in self._puts:
-            put.reset()
+            put.idempotent_next(idempotency_counter)
     
     def put(self):
         put = Put()
@@ -77,11 +83,11 @@ class CollectList(PipelineSource):
         return put
 
 
-class CollectArgsKwargs(PipelineSource):
+class CollectArgsKwargs(Source):
     """
     Base class for collectors that want to allow both named and unnamed puts; do not use directly
     """
-    def __init__(self, *args_pipelines:PipelineSource, **kwargs_pipelines:PipelineSource):
+    def __init__(self, *args_pipelines:Source, **kwargs_pipelines:Source):
         self._args = [item >> Put() for item in args_pipelines]
         self._kwargs = {key: item >> Put() for key, item in kwargs_pipelines.items()}
     
@@ -99,16 +105,17 @@ class CollectArgsKwargs(PipelineSource):
             self._kwargs[key] = put
         return put
     
-    
-    def reset(self):
+    def idempotent_next(self, idempotency_counter):
+        super().idempotent_next(idempotency_counter)
         for put in self._args:
-            put.reset()
+            put.idempotent_next(idempotency_counter)
         for put in self._kwargs.values():
-            put.reset()
+            put.idempotent_next(idempotency_counter)
+
 
 class CollectArgsKwargsTakeMixin:
     _auto_key = 0
-    def take(self, key=None) -> PipelineSource:
+    def take(self, key=None) -> Source:
         """
         Take a sub-value from the pipeline; used to split fields or destructure data.
         """
@@ -122,9 +129,6 @@ class TakeArgsKwargs(PipelineItem):
 
     def __init__(self, key):
         self._key = key
-    
-    def reset(self):
-        super().reset()
     
     def get(self):
         args, kwargs = self._prev.get()
@@ -165,8 +169,8 @@ class CollectFormatString(CollectArgsKwargs):
             self._value = self.format_string.format(*args, **kwargs)
         return self._value
     
-    def reset(self):
-        super().reset()
+    def next(self):
+        super().next()
         self._value = None
 
 
@@ -215,12 +219,12 @@ class CollectCall(CollectArgsKwargs):
             self._value = self.func(*args, **kwargs)
         return self._value
     
-    def reset(self):
-        super().reset()
+    def next(self):
+        super().next()
         self._value = None
 
 
-class CollectValueOther(PipelineSource):
+class CollectValueOther(Source):
     """
     Special collector used to handle the common use case of mapping two fields at once: some 
     field with a limited set of predefined values, and another free-text field for "other" values.
@@ -261,7 +265,7 @@ class CollectValueOther(PipelineSource):
             self._cached = True
         return self._value, self._other
     
-    def reset(self):
+    def next(self):
         self._value = None
         self._other = None
         self._cached = False

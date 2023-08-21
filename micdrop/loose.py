@@ -3,7 +3,7 @@ A collection of pipeline items that are "loose ends", e.g. either do not pull fr
 """
 __all__ = ('LooseSink', 'FactorySource', 'StaticSource', 'IterableSource')
 
-from .base import PipelineSink, PipelineSource
+from .base import PipelineSink, Source
 
 class LooseSink(PipelineSink):
     """
@@ -13,7 +13,7 @@ class LooseSink(PipelineSink):
     pass
 
 
-class FactorySource(PipelineSource):
+class FactorySource(Source):
     """
     A source that calls the given factory function each iteration to get a value, rather than pulling
     from the primary source. Useful to supply values that do not exist in the original data.
@@ -34,12 +34,12 @@ class FactorySource(PipelineSource):
             self._is_cached = True
         return self._value
     
-    def reset(self):
+    def next(self):
         self._value = None
         self._is_cached = False
 
 
-class StaticSource(PipelineSource):
+class StaticSource(Source):
     """
     A source that supplies the same value every iteration. Useful to supply values that do not exist 
     in the original data.
@@ -55,7 +55,7 @@ class StaticSource(PipelineSource):
         return self._value
     
 
-class IterableSource(PipelineSource):
+class IterableSource(Source):
     """
     A source that supplies a value from an iterable The iterable must be as long as, or longer than,  
     the number of records in the main source. Useful to supply values that do not exist in the
@@ -70,13 +70,21 @@ class IterableSource(PipelineSource):
     
     def __init__(self, iterable) -> None:
         self._iterable = iter(iterable)
+        self._valid = True
 
     def get(self):
-        if not self._is_cached:
-            self._value = next(self._iterable)
-            self._is_cached = True
         return self._value
+            
     
-    def reset(self):
+    def next(self):
         self._value = None
         self._is_cached = False
+        try:
+            self._value = next(self._iterable)
+        except StopIteration:
+            self._value = None
+            self._valid = False
+        self._is_cached = True
+    
+    def valid(self):
+        return self._valid

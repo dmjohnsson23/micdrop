@@ -14,13 +14,11 @@ class FilteredSource(Source):
         self.source = source
         self.condition = condition
 
-    def get(self, key):
-        return self.source.get(key)
-
     def next(self)-> bool:
-        while self.source.next():
-            if self.condition(self.source.current_value):
+        while self.source.valid():
+            if self.condition(self.source.get()):
                 return True
+            self.source.reset()
         return False
     
     def open(self):

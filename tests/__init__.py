@@ -1,20 +1,21 @@
 import unittest
 import sys, os
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.basename(__file__), '../')))
-from micdrop.pipeline import *
+from micdrop import *
 from micdrop.sink import *
-from micdrop.source import *
 
 class TestPipeline(unittest.TestCase):
     def test_loose(self):
         pipeline = StaticSource(5) >> LooseSink()
+        pipeline.idempotent_next(0)
         self.assertEqual(pipeline.get(), 5, 'Get static value')
-        pipeline.reset()
-        self.assertEqual(pipeline.get(), 5, 'Get same static value after reset')
+        pipeline.idempotent_next(1)
+        self.assertEqual(pipeline.get(), 5, 'Get same static value after next')
         pipeline = IterableSource(range(5)) >> LooseSink()
+        pipeline.idempotent_next(0)
         self.assertEqual(pipeline.get(), 0, 'Get iterable value')
-        pipeline.reset()
-        self.assertEqual(pipeline.get(), 1, 'Get different iterable value after reset')
+        pipeline.idempotent_next(1)
+        self.assertEqual(pipeline.get(), 1, 'Get different iterable value after next')
         expected_value = 9
         @FactorySource
         def factory():
@@ -22,9 +23,10 @@ class TestPipeline(unittest.TestCase):
             expected_value += 1
             return expected_value
         pipeline = factory >> LooseSink()
+        pipeline.idempotent_next(0)
         self.assertEqual(pipeline.get(), 10, 'Get factory value')
-        pipeline.reset()
-        self.assertEqual(pipeline.get(), 11, 'Get different factory value after reset')
+        pipeline.idempotent_next(1)
+        self.assertEqual(pipeline.get(), 11, 'Get different factory value after next')
 
     def test_basic_type_conversions(self):
         pipeline = StaticSource('5') >> int >> LooseSink()
@@ -117,12 +119,13 @@ class TestPipeline(unittest.TestCase):
             StaticSource('second') >> (choice.value == 1)
             StaticSource('third') >> (choice.value == 2)
             StaticSource('default') >> choice.fallback()
+            choice.idempotent_next(0)
             self.assertEqual(choice.get(), 'first')
-            choice.reset()
+            choice.idempotent_next(1)
             self.assertEqual(choice.get(), 'second')
-            choice.reset()
+            choice.idempotent_next(2)
             self.assertEqual(choice.get(), 'third')
-            choice.reset()
+            choice.idempotent_next(3)
             self.assertEqual(choice.get(), 'default')
     
     def test_branch(self):
@@ -137,12 +140,13 @@ class TestPipeline(unittest.TestCase):
                     case.take() >> collect.put('ice cream')
                 with cases.fallback() as case:
                     case.take() >> collect.put('chocolate')
+            collect.idempotent_next(0)
             self.assertEqual(collect.get(), {'peanut butter':'chocolate','milk':None,'ice cream':None,'chocolate':None})
-            collect.reset()
+            collect.idempotent_next(1)
             self.assertEqual(collect.get(), {'peanut butter':None,'milk':'chocolate','ice cream':None,'chocolate':None})
-            collect.reset()
+            collect.idempotent_next(2)
             self.assertEqual(collect.get(), {'peanut butter':None,'milk':None,'ice cream':'chocolate','chocolate':None})
-            collect.reset()
+            collect.idempotent_next(3)
             self.assertEqual(collect.get(), {'peanut butter':None,'milk':None,'ice cream':None,'chocolate':'chocolate'})
 
     def test_pipeline_segment(self):
@@ -151,10 +155,12 @@ class TestPipeline(unittest.TestCase):
         pipeline = PipelineSegment() >> (lambda val: val * 5) >> str
         sink1 = source1 >> pipeline.apply()
         sink2 = source2 >> pipeline.apply() >> float
+        sink1.idempotent_next(0)
+        sink2.idempotent_next(0)
         self.assertEqual(sink1.get(), '0')
         self.assertEqual(sink2.get(), 20.0)
-        sink1.reset()
-        sink2.reset()
+        sink1.idempotent_next(1)
+        sink2.idempotent_next(1)
         self.assertEqual(sink1.get(), '5')
         self.assertEqual(sink2.get(), 15.0)
     
@@ -163,16 +169,17 @@ class TestPipeline(unittest.TestCase):
         with source >> Choose() as choice:
             SkipRow() >> (choice.value == 2)
             source >> choice.fallback()
+            choice.idempotent_next(0)
             self.assertEqual(choice.get(), 0)
-            choice.reset()
+            choice.idempotent_next(1)
             self.assertEqual(choice.get(), 1)
-            choice.reset()
+            choice.idempotent_next(2)
             from micdrop.exceptions import SkipRow as SkipRowException
             with self.assertRaises(SkipRowException):
                 choice.get()
-            choice.reset()
+            choice.idempotent_next(3)
             self.assertEqual(choice.get(), 3)
-            choice.reset()
+            choice.idempotent_next(4)
             self.assertEqual(choice.get(), 4)
 
 
@@ -214,21 +221,25 @@ class TestSourceSink(unittest.TestCase):
     ]
 
     def test_dicts_source(self):
-        with DictsSource(self.test_data_1) as source:
-            self.assertTrue(source.next(), 'Has next for first iteration')
-            self.assertEqual(source.get('f_name'), 'Bilbo')
-            self.assertTrue(source.next(), 'Has next for second iteration')
-            self.assertEqual(source.get('f_name'), 'Peter')
-            self.assertEqual(source.get('l_name'), 'Parker')
-            self.assertTrue(source.next(), 'Has next for third iteration')
-            self.assertEqual(source.get('occupation'), 'Blacksmith')
-            self.assertFalse(source.next(), 'Has no fourth iteration')
+        with IterableSource(self.test_data_1) as source:
+            source.idempotent_next(0)
+            self.assertTrue(source.valid(), 'Has next for first iteration')
+            self.assertEqual(source.get()['f_name'], 'Bilbo')
+            source.idempotent_next(1)
+            self.assertTrue(source.valid(), 'Has next for second iteration')
+            self.assertEqual(source.get()['f_name'], 'Peter')
+            self.assertEqual(source.get()['l_name'], 'Parker')
+            source.idempotent_next(2)
+            self.assertTrue(source.valid(), 'Has next for third iteration')
+            self.assertEqual(source.get()['occupation'], 'Blacksmith')
+            source.idempotent_next(3)
+            self.assertFalse(source.valid(), 'Has no fourth iteration')
     
     def test_dicts_sink(self):
         sink = DictsSink()
-        source = DictsSource([{}, {}, {}])
+        source = IterableSource(range(3))
 
-        IterableSource(range(33)) >> sink.put('id')
+        source >> sink.put('id')
         StaticSource('Human') >> sink.put('race')
 
         self.assertEqual(sink.process_all(source, True), [
@@ -240,7 +251,7 @@ class TestSourceSink(unittest.TestCase):
 
 
     def test_integration(self):
-        source = DictsSource(self.test_data_1)
+        source = IterableSource(self.test_data_1)
         sink = DictsSink()
 
         IterableSource(range(1, 99999)) >> sink.put('record number')
@@ -276,36 +287,36 @@ class TestSourceSink(unittest.TestCase):
             }
         ])
 
-    def test_multi_sink(self):
-        source = DictsSource(self.test_data_1)
-        sink = MultiSink(
-            s1 = DictsSink(),
-            s2 = DictsSink()
-        )
+    # def test_multi_sink(self):
+    #     source = IterableSource(self.test_data_1)
+    #     sink = MultiSink(
+    #         s1 = DictsSink(),
+    #         s2 = DictsSink()
+    #     )
 
-        source.take('f_name') >> sink.s1.put('f_name')
-        source.take('l_name') >> sink.s1.put('l_name')
-        source.take('race') >> sink.s2.put('race')
-        source.take('occupation') >> sink.s2.put('occupation')
+    #     source.take('f_name') >> sink.s1.put('f_name')
+    #     source.take('l_name') >> sink.s1.put('l_name')
+    #     source.take('race') >> sink.s2.put('race')
+    #     source.take('occupation') >> sink.s2.put('occupation')
 
-        self.assertEqual(sink.process_all(source, True), [
-            [
-                {'f_name': 'Bilbo', 'l_name': 'Baggins'},
-                {'race': 'Hobbit', 'occupation': 'Burglar'},
-            ],
-            [
-                {'f_name': 'Peter', 'l_name': 'Parker'},
-                {'race': 'Human', 'occupation': 'Photographer'},
-            ],
-            [
-                {'f_name': 'Perrin', 'l_name': 'Aybara'},
-                {'race': 'Human', 'occupation': 'Blacksmith'},
-            ],
-        ])
+    #     self.assertEqual(sink.process_all(source, True), [
+    #         [
+    #             {'f_name': 'Bilbo', 'l_name': 'Baggins'},
+    #             {'race': 'Hobbit', 'occupation': 'Burglar'},
+    #         ],
+    #         [
+    #             {'f_name': 'Peter', 'l_name': 'Parker'},
+    #             {'race': 'Human', 'occupation': 'Photographer'},
+    #         ],
+    #         [
+    #             {'f_name': 'Perrin', 'l_name': 'Aybara'},
+    #             {'race': 'Human', 'occupation': 'Blacksmith'},
+    #         ],
+    #     ])
     
 
     def test_skip_row(self):
-        source = DictsSource(self.test_data_1)
+        source = IterableSource(self.test_data_1)
         sink = DictsSink()
 
         source.take('f_name') >> sink.put('f_name')

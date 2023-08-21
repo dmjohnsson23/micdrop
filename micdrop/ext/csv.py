@@ -16,17 +16,18 @@ class CSVSource(Source):
         self._encoding = encoding
         self._reader_opts = csv_reader_options
         self._csv = None
-
-    def get(self, key):
-        return self._current_value[key]
+        self._valid = True
 
     def next(self):
         try:
             self._current_value = next(self._csv)
             self._current_index += 1
-            return True
+            self._valid = True
         except StopIteration:
-            return False
+            self._valid = False
+    
+    def valid(self):
+        return self._valid
     
     def open(self):
         if not isinstance(self._file, IOBase):

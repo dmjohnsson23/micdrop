@@ -82,6 +82,23 @@ source.get('LOOKUP MAPPINGS') >> Lookup({'a':1, 'b':2}) >> sink.put('lookup_mapp
 sink.process_all(source, on_duplicate_update=True)
 ```
 
+## Documentation 
+
+The various types of pipeline items available are reasonably well documented by the docblocks inside the source code, but there is currently no stand-alone documentation.
+
 ## Extensibility
 
 This library is designed for extensibility. Your can write your own sinks, sources, or pipeline items by extending `sink.Sink`, `source.Source`, and `pipeline.PipelineItem` respectively. You can also allow arbitrary classes to be used as pipeline items if you implement a method named `to_pipeline_source`, `to_pipeline_item`, or `to_pipeline_sink`.
+
+## TODOs
+
+* Pipelines should function as reusable segments without needing the `PipelineSegment` class
+    * Have do find a way to do this without breaking the cache/next mechanism, which I don't think we can do without
+* Unify `pipeline.PipelineSource` with `source.source` and `pipeline.PipelineSink` with `sink.Sink`
+    * This should provide a way for "composable" sources and sinks and hopefully simplify the codebase
+* Generic "files" source/sink
+    * Probably would need subclassed to be useful (e.g. to parse the files), but could provide the base for the XML classes below
+* XML extension using ElementTree
+    * Take using xpath
+    * Allow multiple files or a singe file with multiple values (different source/sink classes probably)
+* Build stand-alone documentation

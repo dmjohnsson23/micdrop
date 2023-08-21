@@ -1,8 +1,8 @@
 from __future__ import annotations
-from .base import PipelineItem, PipelineSink, PipelineSource, Call
+from .base import PipelineItem, PipelineSink, Source, Call
 
 
-class ProxySource(PipelineSource):
+class ProxySource(Source):
     """
     A "pseudo" source that is intended to be puppeteered by another object
     """
@@ -11,7 +11,7 @@ class ProxySource(PipelineSource):
     def get(self):
         return self._value
     
-    def reset(self):
+    def next(self):
         self._value = None
     
     def set(self, value):
@@ -22,8 +22,9 @@ class PipelineSegment:
     A reusable piece of a pipeline
     """
     _inlet_proxy = ProxySource = None
-    _inlet: PipelineSource = None
+    _inlet: Source = None
     _outlet: PipelineSink = None
+    _apply_counter: int = 0
 
     def __rshift__(self, next):
         if self._outlet is None:
@@ -36,7 +37,7 @@ class PipelineSegment:
     
     def __lshift__(self, prev):
         if self._inlet is None:
-            prev = PipelineSource.create(prev)
+            prev = Source.create(prev)
             self.set_inlet(prev)
             self.set_outlet(prev)
         else:
@@ -52,13 +53,13 @@ class PipelineSegment:
             self.set_outlet(self._outlet(func))
         return self
     
-    def set_inlet(self, inlet: PipelineSource):
+    def set_inlet(self, inlet: Source):
         """
         Manually set the inlet of this pipeline segment. 
         
         This should rarely be used under normal circumstances, but may be necessary for more complex branching pipelines.
         """
-        inlet = PipelineSource.create(inlet)
+        inlet = Source.create(inlet)
         proxy = ProxySource()
         proxy >> inlet
         self._inlet = inlet
@@ -77,7 +78,8 @@ class PipelineSegment:
         """
         Get a `PipelineItem` that will run values through this pipeline segment
         """
-        return AppliedPipelineSegment(self)
+        self._apply_counter += 1
+        return AppliedPipelineSegment(self, self._apply_counter)
 
     to_pipeline_item = apply
 
@@ -85,10 +87,12 @@ class PipelineSegment:
 class AppliedPipelineSegment(PipelineItem):
     _segment: PipelineSegment
 
-    def __init__(self, segment:PipelineSegment):
+    def __init__(self, segment:PipelineSegment, applied_id):
         self._segment = segment
+        self._applied_id = applied_id
     
     def process(self, value):
-        self._segment._outlet.reset()
+        # we run `next` here to insure that the segment can be used multiple times in the same pipeline
+        self._segment._outlet.idempotent_next((self._applied_id, self._reset_idempotency))
         self._segment._inlet_proxy.set(value)
         return self._segment._outlet.get()

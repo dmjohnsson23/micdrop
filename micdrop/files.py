@@ -1,4 +1,4 @@
-from .base import PipelineItem, PipelineSource, Put
+from .base import PipelineItem, Source, Put
 from time import time_ns
 import os, shutil
 __all__ = ('WriteFile', 'CopyFile', 'MoveFile', 'ReadFile')
@@ -10,7 +10,7 @@ class WriteFile(PipelineItem):
     You can optionally control the name using the `put_name` method or the `name_pipeline` parameter.
     (These are equivalent). Otherwise, uses `time_ns()` to name the file.
     """
-    def __init__(self, save_dir: str, is_binary=None, name_pipeline:PipelineSource = None):
+    def __init__(self, save_dir: str, is_binary=None, name_pipeline:Source = None):
         self.save_dir = save_dir
         self.is_binary=None
         self._put_name = name_pipeline >> Put()
@@ -36,7 +36,7 @@ class WriteFile(PipelineItem):
 
 
 class _FilePipelineItemBase2(PipelineItem):
-    def __init__(self, from_dir: str, to_dir: str, name_pipeline:PipelineSource = None):
+    def __init__(self, from_dir: str, to_dir: str, name_pipeline:Source = None):
         self.load_dir = from_dir
         self.save_dir = to_dir
         self._put_name = name_pipeline >> Put()

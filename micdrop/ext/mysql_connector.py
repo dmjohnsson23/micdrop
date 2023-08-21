@@ -34,9 +34,6 @@ class QuerySource(Source):
         self.query = query
         self._iter = None
 
-    def get(self, key):
-        return self._current_value[key]
-
     def next(self):
         try:
             self._current_value = dict(zip(self._columns, next(self._iter)))

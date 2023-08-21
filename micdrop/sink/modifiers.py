@@ -1,5 +1,5 @@
 from .base import Sink
-from ..source import Source
+from ..base import Source
 
 class MultiSink(Sink):
     """
@@ -21,8 +21,11 @@ class MultiSink(Sink):
     def process(self, source):
         dummy_source = MultiSinkDummySource(source)
         sink_processes = [iter(sink.process(dummy_source)) for sink in self._sinks]
+        counter = 0
         with source:
+            counter += 1
             while True:
+                source.idempotent_next(counter)
                 if not source.next():
                     break
                 yield [next(process) for process in sink_processes]

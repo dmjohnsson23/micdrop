@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ..pipeline.base import Put
+from ..base import Put
 from ..exceptions import StopProcessing, SkipRow
 __all__ = ('Sink',)
 
@@ -25,11 +25,18 @@ class Sink:
         return put
 
     def process(self, source):
+        counter = 0
         with source:
             while True:
+                counter += 1
+                # Reset all piplines for the next iteration
+                for put in self._puts.values():
+                    put.idempotent_next(counter)
+                for put in self._null_puts:
+                    put.idempotent_next(counter)
+                if not source.valid():
+                    break
                 try:
-                    if not source.next():
-                        break
                     for put in self._null_puts:
                         put.get()
                     yield {key: put.get() for key, put in self._puts.items()}
@@ -37,12 +44,6 @@ class Sink:
                     continue
                 except StopProcessing:
                     break
-                finally:
-                    # Reset all piplines for the next iteration
-                    for put in self._puts.values():
-                        put.reset()
-                    for put in self._null_puts:
-                        put.reset()
     
     def process_all(self, source, return_results=False, *args, **kwargs):
         if return_results:

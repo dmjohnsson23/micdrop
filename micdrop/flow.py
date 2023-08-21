@@ -1,9 +1,9 @@
 from __future__ import annotations
 from typing import Callable
-from .base import Put, PipelineItem, PipelineSource, PipelineSink
+from .base import Put, PipelineItem, Source, PipelineSink
 from .collect import CollectArgsKwargsTakeMixin
-from ..utils import DeferredOperand
-from ..exceptions import SkipRow as SkipRowException, StopProcessing as StopProcessingException
+from .utils import DeferredOperand
+from .exceptions import SkipRow as SkipRowException, StopProcessing as StopProcessingException
 __all__ = ('Choose', 'Branch', 'Coalesce', 'SkipRow', 'StopProcessing')
 
 class Choose(PipelineItem):
@@ -28,10 +28,10 @@ class Choose(PipelineItem):
                 return put.get()
         return None
     
-    def reset(self):
-        super().reset()
+    def idempotent_next(self, idempotency_counter):
+        super().idempotent_next(idempotency_counter)
         for _, put in self._branches:
-            put.reset()
+            put.idempotent_next(idempotency_counter)
     
     
     def check(self, condition:Callable):
@@ -136,14 +136,16 @@ class Branch(PipelineSink):
             self._kwargs[key] = put
         return put
     
-    def reset(self):
-        super().reset()
+    def next(self):
         self._current_case = None
         self._cached = False
+
+    def idempotent_next(self, idempotency_counter):
+        super().idempotent_next(idempotency_counter)
         for put in self._args:
-            put.reset()
+            put.idempotent_next(idempotency_counter)
         for put in self._kwargs.values():
-            put.reset()
+            put.idempotent_next(idempotency_counter)
     
     def check(self, condition:Callable):
         """
@@ -190,25 +192,25 @@ class Branch(PipelineSink):
     def __exit__(self, type, value, traceback):
         pass
 
-class BranchCase(CollectArgsKwargsTakeMixin, PipelineSource):
+class BranchCase(CollectArgsKwargsTakeMixin, Source):
     def __init__(self, branch:Branch):
         self._branch = branch
     
     def get(self):
         return self._branch.get(self)
     
-    def reset(self):
-        super().reset()
-        self._branch.reset()
+    def idempotent_next(self, idempotency_counter):
+        super().idempotent_next(idempotency_counter)
+        self._branch.idempotent_next(idempotency_counter)
 
 
-class Coalesce(PipelineSource):
+class Coalesce(Source):
     """
     A collector pipeline that returns the first non-null value that is put.
     """
     _value = None
     _cached = False
-    def __init__(self, *pipelines:PipelineSource):
+    def __init__(self, *pipelines:Source):
         self._puts = [item >> Put() for item in pipelines]
     
     def get(self):
@@ -225,7 +227,7 @@ class Coalesce(PipelineSource):
                 self._cached = True
         return self._value
     
-    def reset(self):
+    def next(self):
         self._value = None
         self._cached = False
     
@@ -235,7 +237,7 @@ class Coalesce(PipelineSource):
         return put
 
 
-class SkipRow(PipelineSource):
+class SkipRow(Source):
     """
     Used with a `Choice` or `Branch` to skip the current row (e.g. if the source data represents something not supported in the target sink)
 
@@ -249,8 +251,8 @@ class SkipRow(PipelineSource):
     def get(self):
         raise SkipRowException()
 
-    
-class StopProcessing(PipelineSource):
+
+class StopProcessing(Source):
     """
     Used with a `Choice` or `Branch` to cleanly stop processing (e.g. this and all future rows will be skipped)
     """
