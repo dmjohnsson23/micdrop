@@ -4,7 +4,7 @@ from .base import Put, PipelineItem, Source
 from .collect import CollectArgsKwargsTakeMixin
 from .utils import DeferredOperand
 from .exceptions import SkipRow as SkipRowException, StopProcessing as StopProcessingException
-__all__ = ('Choose', 'Branch', 'Coalesce', 'SkipRow', 'StopProcessing')
+__all__ = ('Choose', 'Branch', 'Coalesce', 'SkipRow', 'StopProcessing', 'StopIf', 'SkipIf', 'SentinelStop', 'SentinelSkip')
 
 class Choose(PipelineItem):
     """
@@ -258,3 +258,47 @@ class StopProcessing(Source):
     """
     def get(self):
         raise StopProcessingException()
+        
+
+class StopIf(PipelineItem):
+    """
+    If the input value matches the condition, then stop processing. Otherwise, forward the value unchanged.
+    """
+    def __init__(self, condition):
+        self.condition = condition
+    
+    def process(self, value):
+        if self.condition(self.value):
+            raise StopProcessingException()
+        else:
+            return value
+
+
+class SkipIf(PipelineItem):
+    """
+    If the input value matches the condition, then skip the entire row. Otherwise, forward the value unchanged.
+    """
+    def __init__(self, condition):
+        self.condition = condition
+    
+    def process(self, value):
+        if self.condition(self.value):
+            raise SkipRowException()
+        else:
+            return value
+
+
+class SentinelStop(StopIf):
+    def __init__(self, sentinel_value, identity = False):
+        if identity:
+            super().__init__(lambda val: val is sentinel_value)
+        else:
+            super().__init__(lambda val: val == sentinel_value)
+        
+
+class SentinelSkip(SkipIf):
+    def __init__(self, sentinel_value, identity = False):
+        if identity:
+            super().__init__(lambda val: val is sentinel_value)
+        else:
+            super().__init__(lambda val: val == sentinel_value)

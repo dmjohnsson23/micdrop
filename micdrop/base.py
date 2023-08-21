@@ -1,5 +1,5 @@
 from __future__ import annotations
-__all__ = ('PipelineItem', 'Source', 'Put', 'Take', 'TakeAttr', 'Call', 'CallMethod')
+__all__ = ('PipelineItem', 'Source', 'Put', 'Take', 'TakeAttr', 'TakeIndex', 'ContinuedPut', 'Call', 'CallMethod')
 from typing import Callable
 
 
@@ -78,19 +78,21 @@ class Source:
         """
         return self >> TakeAttr(key, safe)
     
+    def take_index(self) -> Source:
+        """
+        Take the index for the pipeline value.
+
+        Shorthand for ``source >> TakeIndex()``.
+
+        Will forward a value of `None` for reports that are not indexed.
+        """
+        return self >> TakeIndex()
+    
     def open(self):
         pass
 
     def close(self):
         pass
-
-    @property
-    def current_index(self):
-        return self._current_index
-
-    @property
-    def current_value(self):
-        return self._current_value
     
     def __enter__(self):
         self.open()
@@ -133,15 +135,31 @@ class Put:
         """
         pass
 
+    @property
+    def then(self) -> Source:
+        """
+        Continue the pipeline after this put.
+
+        Shorthand for ``ContinuedPut(put)``.
+
+        Example::
+
+            source.take('value') >> sink.put('original').then >> int >> sink.put('as_int')
+            # The above is equivalent to:
+            with source.take('value') as value:
+                value >> sink.put('original')
+                value >> int >> sink.put('as_int')
+        """
+        return ContinuedPut(self)
+
     @classmethod
     def create(cls, item):
         if isinstance(item, Put):
             return item
-        elif hasattr(item, 'to_pipeline_sink'):
-            return item.to_pipeline_sink()
+        elif hasattr(item, 'to_pipeline_put'):
+            return item.to_pipeline_put()
         else:
             return PipelineItem.create(item)
-
 
 class PipelineItem(Put, Source):
     _value = None
@@ -179,14 +197,33 @@ class PipelineItem(Put, Source):
             raise TypeError(f"Can't use {type(item)} as a PipelineItem")
 
 
+class ContinuedPut(PipelineItem):
+    """
+    Used to place a Put in the middle of a pipeline without ending the pipeline.
+
+    Example::
+
+        source.take('value') >> ContinuedPut(sink.put('original')) >> int >> sink.put('as_int')
+        # The above is equivalent to:
+        with source.take('value') as value:
+            value >> sink.put('original')
+            value >> int >> sink.put('as_int')
+    """
+    def __init__(self, put:Put):
+        self >> put
+    
+    def get(self):
+        return self._prev.get()
+
+
 class Take(PipelineItem):
     """
     Extracts a single value from the previous pipeline value using ``[]`` syntax (``__getitem__``).
 
     Example::
 
-        sink.take('dict_value') >> Take('subvalue') >> sink.put('value')
-        sink.take('list_value') >> Take(0) >> sink.put('value')
+        source.take('dict_value') >> Take('subvalue') >> sink.put('value')
+        source.take('list_value') >> Take(0) >> sink.put('value')
     """
     key = None
 
@@ -211,7 +248,7 @@ class TakeAttr(Take):
 
     Example::
 
-        sink.take('object_value') >> TakeAttr('subvalue') >> sink.put('value')
+        source.take('object_value') >> TakeAttr('subvalue') >> sink.put('value')
     """
     
     def get(self):
@@ -223,6 +260,19 @@ class TakeAttr(Take):
         except AttributeError:
             if not self.safe:
                 raise
+
+
+class TakeIndex(PipelineItem):
+    """
+    Extracts the index value from the pipeline item
+
+    Example::
+
+        source >> TakeIndex() >> sink.put('id')
+    """
+    
+    def get(self):
+        return self._prev.get_index()
 
 
 class Call(PipelineItem):

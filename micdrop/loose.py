@@ -13,6 +13,9 @@ class FactorySource(Source):
     Example::
 
         FactorySource(time_ns) >> sink.put('name')
+    
+    A factory source is always considered valid, but can be combined with `SentinelStop` or `SentinelSkip`
+    if desired.
     """
     _value = None
     _is_cached = False
@@ -39,6 +42,8 @@ class StaticSource(Source):
     Example::
 
         StaticSource('Other') >> sink.put('type')
+    
+    A static source is always considered valid and always returns the same value.
     """
     def __init__(self, value) -> None:
         self._value = value

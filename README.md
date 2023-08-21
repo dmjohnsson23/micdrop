@@ -91,7 +91,7 @@ The various types of pipeline items available are reasonably well documented by 
 
 ## Extensibility
 
-This library is designed for extensibility. Your can write your own sinks, sources, or pipeline items by extending `sink.Sink`, `source.Source`, and `pipeline.PipelineItem` respectively. You can also allow arbitrary classes to be used as pipeline items if you implement a method named `to_pipeline_source`, `to_pipeline_item`, or `to_pipeline_sink`.
+This library is designed for extensibility. Your can write your own sinks, sources, or pipeline items by extending `sink.Sink`, `Source`, and `PipelineItem` respectively. You can also allow arbitrary classes to be used as pipeline items if you implement a method named `to_pipeline_source`, `to_pipeline_item`, or `to_pipeline_put` (Implement any one of the three).
 
 ## TODOs
 
@@ -100,6 +100,9 @@ This library is designed for extensibility. Your can write your own sinks, sourc
     * Maybe just always implicitly use `PipelineSegment`? (Would probably work, though the idempotency tokens could turn into quite the nasty mess of nested tuples)
 * Generic "files" source/sink
     * Probably would need subclassed to be useful (e.g. to parse the files), but could provide the base for the XML classes below
+* Looping "sub-pipelines" or "each" pipelines
+    * E.g. if the source contains a list or other composite structures, and we want to modify the items without destructuring it
+    * Could be done with pipeline segments
 * XML extension using ElementTree
     * Take using xpath
     * Allow multiple files or a singe file with multiple values (different source/sink classes probably)
