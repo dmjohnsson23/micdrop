@@ -54,34 +54,50 @@ class StaticSource(Source):
 
 class IterableSource(Source):
     """
-    A source that supplies a value from an iterable The iterable must be as long as, or longer than,  
-    the number of records in the main source. Useful to supply values that do not exist in the
-    original data.
+    A source that supplies a value from an iterable.
 
     Example::
 
         IterableSource(range(99)) >> sink.put('id')
     """
     _value = None
-    _is_cached = False
     
     def __init__(self, iterable) -> None:
         self._iterable = iter(iterable)
-        self._valid = True
 
     def get(self):
         return self._value
             
-    
     def next(self):
-        self._value = None
-        self._is_cached = False
-        try:
-            self._value = next(self._iterable)
-        except StopIteration:
-            self._value = None
-            self._valid = False
-        self._is_cached = True
+        self._value = next(self._iterable) # Deliberately allow StopIteration to propagate
+
+
+class DictSource(Source):
+    """
+    A source that supplies a value from a dict.
+
+    Example::
+
+        source = DictSource({
+            42: {'name':'Frank Herbert'},
+            111: {'name':'Bilbo Baggins'}, 
+            900: {'name':'Yoda'},
+        }) 
+        source.take_index() >> sink.put('id')
+        source.take('name') >> sink.put('name')
+    """
+    _key = None
+    _value = None
     
-    def valid(self):
-        return self._valid
+    def __init__(self, dictionary:dict) -> None:
+        self._iterable = iter(dictionary.items())
+
+    def get_index(self):
+        return self._key
+    
+    def get(self):
+        return self._value
+            
+    def next(self):
+        self._key, self._value = next(self._iterable) # Deliberately allow StopIteration to propagate
+    

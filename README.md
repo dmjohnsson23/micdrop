@@ -1,6 +1,8 @@
 # MIC Drop (Migrate, Import, Convert)
 
-Extensible framework/library to migrate data from source to another using a declarative interface. The library makes elaborate (and somewhat unconventional) use of operator overloading to abstract away some magic and allow you to focus on the important part: mapping data.
+Extensible framework/library to migrate data from source to another using a declarative interface. The library makes elaborate (and somewhat unconventional) use of operator overloading to abstract away some boilerplate and allow you to focus on the important part: mapping data.
+
+At its core, the library's operation is quite simple: loop over the rows of the source data, perform some transformations, and output the transformed data to the sink.
 
 ## Terminology
 
@@ -95,6 +97,7 @@ This library is designed for extensibility. Your can write your own sinks, sourc
 
 ## TODOs
 
+* Context managers on Origin Sources are currently conceptually used for a different purpose than context managers on all other sources; rectify this.
 * Pipelines should function as reusable segments without needing the `PipelineSegment` class
     * Have do find a way to do this without breaking the cache/next mechanism, which I don't think we can do without
     * Maybe just always implicitly use `PipelineSegment`? (Would probably work, though the idempotency tokens could turn into quite the nasty mess of nested tuples)
@@ -103,6 +106,7 @@ This library is designed for extensibility. Your can write your own sinks, sourc
 * Looping "sub-pipelines" or "each" pipelines
     * E.g. if the source contains a list or other composite structures, and we want to modify the items without destructuring it
     * Could be done with pipeline segments
+* Allow whole value to be sent to Sinks, not just Puts, and also allow indexes to be put for Sinks
 * XML extension using ElementTree
     * Take using xpath
     * Allow multiple files or a singe file with multiple values (different source/sink classes probably)

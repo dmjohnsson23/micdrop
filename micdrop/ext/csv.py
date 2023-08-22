@@ -3,6 +3,7 @@ Extension integrating with the csv module in the python standard library.
 """
 from ..base import Source
 from ..sink import Sink
+from ..exceptions import StopProcessing
 from csv import DictReader, DictWriter
 from io import IOBase
 
@@ -16,18 +17,16 @@ class CSVSource(Source):
         self._encoding = encoding
         self._reader_opts = csv_reader_options
         self._csv = None
-        self._valid = True
 
     def next(self):
-        try:
-            self._current_value = next(self._csv)
-            self._current_index += 1
-            self._valid = True
-        except StopIteration:
-            self._valid = False
+        self._current_value = next(self._csv) # Deliberately allow StopIteration to propagate
+        self._current_index += 1
     
-    def valid(self):
-        return self._valid
+    def get(self):
+        return self._current_value
+    
+    def get_index(self):
+        return self._current_index
     
     def open(self):
         if not isinstance(self._file, IOBase):

@@ -1,4 +1,5 @@
 from .base import Source
+from .exceptions import SkipRow, StopProcessing
 from typing import Callable
 __all__ = ('FilteredSource',)
 
@@ -14,12 +15,17 @@ class FilteredSource(Source):
         self.source = source
         self.condition = condition
 
-    def next(self)-> bool:
-        while self.source.valid():
-            if self.condition(self.source.get()):
-                return True
-            self.source.reset()
-        return False
+    def idempotent_next(self, idempotency_counter):
+        counter = 0
+        while True:
+            try:
+                self.source.idempotent_next((counter, idempotency_counter))
+                if self.condition(self.source.get()):
+                    return
+            except SkipRow:
+                continue
+            except (StopIteration, StopProcessing):
+                break
     
     def open(self):
         return self.source.open()

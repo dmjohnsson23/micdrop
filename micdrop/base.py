@@ -1,6 +1,7 @@
 from __future__ import annotations
-__all__ = ('PipelineItem', 'Source', 'Put', 'Take', 'TakeAttr', 'TakeIndex', 'ContinuedPut', 'Call', 'CallMethod')
+__all__ = ('PipelineItem', 'Source', 'Put', 'Take', 'TakeAttr', 'TakeIndex', 'ContinuedPut', 'Call', 'Invoke', 'InvokeMethod')
 from typing import Callable
+from contextlib import contextmanager
 
 
 class Source:
@@ -10,7 +11,8 @@ class Source:
     _reset_idempotency = None
     def get(self):
         """
-        Get the current value for this pipeline
+        Get the current value for this pipeline. Should raise either `micdrop.exceptions.StopProcessing`
+        or `StopIteration` once the source is exhausted, if `next` did not already do so.
         """
         raise NotImplementedError('Source.get must be overridden')
     
@@ -36,18 +38,10 @@ class Source:
 
     def next(self):
         """
-        Advance to the next item in the pipeline
+        Advance to the next item in the pipeline. May raise `micdrop.exceptions.StopProcessing` or
+        `StopIteration` if the source is exhausted, or may allow `get` to do so instead.
         """
         pass
-    
-    def valid(self) -> bool:
-        """
-        Called after a call to `reset` to see if the source has a current valid value.
-        
-        If this ever returns `False`, it indicates that the source is exhausted; do not use
-        this to indicate an empty value. Instead, return `None` from `get`.
-        """
-        return True
 
     def __rshift__(self, next):
         next = Put.create(next)
@@ -93,13 +87,50 @@ class Source:
 
     def close(self):
         pass
+
+    @property
+    @contextmanager
+    def opened(self):
+        """
+        Context manager to open an close the source.
+
+        Note that this is different from using the source as a context manager directly. This
+        method actually calls `open` and `close`, whereas the other is just for syntactic sugar.
+
+        This is used internally by `Sink.process`, and of limited use elsewhere unless you are
+        trying to implement your own processing loop.
+
+        ::
+
+            # Use a source as a context manager directly when building the pipeline...
+            with IterableSource(dicts) as source:
+                source.take('thing1') >> sink.put('thing_1')
+                source.take('thing2') >> sink.put('thing_2')
+
+            # ...but use source.opened when actually processing the source.
+            def process_source(source):
+                '''Yields all the rows of the source'''
+                counter = 0
+                with source.opened:
+                    while True:
+                        counter += 1
+                        try:
+                            source.idempotent_next(counter)
+                            yield source.get()
+                        except SkipRow:
+                            continue
+                        except (StopProcessing, StopIteration):
+                            break
+        """
+        self.open()
+        yield self
+        self.close()
     
     def __enter__(self):
-        self.open()
         return self
     
     def __exit__(self, type, value, traceback):
-        self.close()
+        pass
 
     @classmethod
     def create(cls, item):
@@ -136,7 +167,7 @@ class Put:
         pass
 
     @property
-    def then(self) -> Source:
+    def then(self) -> ContinuedPut:
         """
         Continue the pipeline after this put.
 
@@ -177,6 +208,14 @@ class PipelineItem(Put, Source):
     def next(self):
         self._value = None
         self._is_cached = False
+    
+    def __rshift__(self, next):
+        if self._prev is None:
+            # Create a pipeline segment since this item has no source
+            from .segment import PipelineSegment
+            return PipelineSegment() >> self >> next
+        else:
+            return super().__rshift__(next)
     
     @classmethod
     def create(cls, item):
@@ -288,7 +327,19 @@ class Call(PipelineItem):
         return self.function(value, *self.additional_args, **self.additional_kwargs)
     
 
-class CallMethod(PipelineItem):
+class Invoke(PipelineItem):
+    """
+    Call the pipeline value as a function with the given arguments.
+    """
+    def __init__(self, *additional_args, **additional_kwargs) -> None:
+        self.additional_args = additional_args
+        self.additional_kwargs = additional_kwargs
+    
+    def process(self, value):
+        return value(*self.additional_args, **self.additional_kwargs)
+    
+
+class InvokeMethod(PipelineItem):
     """
     Call a method on the given pipeline value
     """

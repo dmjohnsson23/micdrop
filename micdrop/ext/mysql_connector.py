@@ -36,12 +36,14 @@ class QuerySource(Source):
         self._iter = None
 
     def next(self):
-        try:
-            self._current_value = dict(zip(self._columns, next(self._iter)))
-            self._current_index += 1
-            return True
-        except StopIteration:
-            return False
+        self._current_value = dict(zip(self._columns, next(self._iter)))
+        self._current_index += 1
+    
+    def get(self):
+        return self._current_value
+    
+    def get_index(self):
+        return self._current_index
     
     def open(self):
         self.db_cursor.execute(self.query, self.params)

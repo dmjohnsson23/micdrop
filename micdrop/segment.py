@@ -27,6 +27,7 @@ class PipelineSegment:
     _apply_counter: int = 0
 
     def __rshift__(self, next):
+        """Append a new Put on the outlet."""
         if self._outlet is None:
             next = Put.create(next)
             self.set_inlet(next)
@@ -36,6 +37,7 @@ class PipelineSegment:
         return self
     
     def __lshift__(self, prev):
+        """Prepend a new Source at the inlet."""
         if self._inlet is None:
             prev = Source.create(prev)
             self.set_inlet(prev)
@@ -45,6 +47,9 @@ class PipelineSegment:
         return self
     
     def __call__(self, func):
+        """
+        Allows usage as a decorator to append a Call Source at the outlet.
+        """
         if self._outlet is None:
             call = Call(func)
             self.set_inlet(call)
@@ -83,6 +88,20 @@ class PipelineSegment:
 
     to_pipeline_item = apply
 
+    @property
+    def then(self):
+        """
+        Shorthand for ``pipeline_segment.apply().then``.
+
+        Example::
+
+            source.take('thing') >> (Call(int) >> sink.put('intval')).then >> str >> sink.put('strval')
+            # The above code is equivalent to the following:
+            with source.take('thing') as thing:
+                thing >> int >> sink.put('intval')
+                thing >> str >> sink.put('strval')
+        """
+        return self.apply().then
 
 class AppliedPipelineSegment(PipelineItem):
     _segment: PipelineSegment

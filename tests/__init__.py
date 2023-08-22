@@ -3,6 +3,7 @@ import sys, os
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.basename(__file__), '../')))
 from micdrop import *
 from micdrop.sink import *
+from micdrop.exceptions import StopProcessing as StopProcessingException
 
 class TestPipeline(unittest.TestCase):
     def test_loose(self):
@@ -223,17 +224,15 @@ class TestSourceSink(unittest.TestCase):
     def test_dicts_source(self):
         with IterableSource(self.test_data_1) as source:
             source.idempotent_next(0)
-            self.assertTrue(source.valid(), 'Has next for first iteration')
             self.assertEqual(source.get()['f_name'], 'Bilbo')
             source.idempotent_next(1)
-            self.assertTrue(source.valid(), 'Has next for second iteration')
             self.assertEqual(source.get()['f_name'], 'Peter')
             self.assertEqual(source.get()['l_name'], 'Parker')
             source.idempotent_next(2)
-            self.assertTrue(source.valid(), 'Has next for third iteration')
             self.assertEqual(source.get()['occupation'], 'Blacksmith')
-            source.idempotent_next(3)
-            self.assertFalse(source.valid(), 'Has no fourth iteration')
+            with self.assertRaises((StopProcessingException, StopIteration)):
+                source.idempotent_next(3)
+                source.get()
     
     def test_dicts_sink(self):
         sink = DictsSink()
@@ -287,32 +286,32 @@ class TestSourceSink(unittest.TestCase):
             }
         ])
 
-    # def test_multi_sink(self):
-    #     source = IterableSource(self.test_data_1)
-    #     sink = MultiSink(
-    #         s1 = DictsSink(),
-    #         s2 = DictsSink()
-    #     )
+    def test_multi_sink(self):
+        source = IterableSource(self.test_data_1)
+        sink = MultiSink(
+            s1 = DictsSink(),
+            s2 = DictsSink()
+        )
 
-    #     source.take('f_name') >> sink.s1.put('f_name')
-    #     source.take('l_name') >> sink.s1.put('l_name')
-    #     source.take('race') >> sink.s2.put('race')
-    #     source.take('occupation') >> sink.s2.put('occupation')
+        source.take('f_name') >> sink.s1.put('f_name')
+        source.take('l_name') >> sink.s1.put('l_name')
+        source.take('race') >> sink.s2.put('race')
+        source.take('occupation') >> sink.s2.put('occupation')
 
-    #     self.assertEqual(sink.process_all(source, True), [
-    #         [
-    #             {'f_name': 'Bilbo', 'l_name': 'Baggins'},
-    #             {'race': 'Hobbit', 'occupation': 'Burglar'},
-    #         ],
-    #         [
-    #             {'f_name': 'Peter', 'l_name': 'Parker'},
-    #             {'race': 'Human', 'occupation': 'Photographer'},
-    #         ],
-    #         [
-    #             {'f_name': 'Perrin', 'l_name': 'Aybara'},
-    #             {'race': 'Human', 'occupation': 'Blacksmith'},
-    #         ],
-    #     ])
+        self.assertEqual(sink.process_all(source, True), [
+            [
+                {'f_name': 'Bilbo', 'l_name': 'Baggins'},
+                {'race': 'Hobbit', 'occupation': 'Burglar'},
+            ],
+            [
+                {'f_name': 'Peter', 'l_name': 'Parker'},
+                {'race': 'Human', 'occupation': 'Photographer'},
+            ],
+            [
+                {'f_name': 'Perrin', 'l_name': 'Aybara'},
+                {'race': 'Human', 'occupation': 'Blacksmith'},
+            ],
+        ])
     
 
     def test_skip_row(self):

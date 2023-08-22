@@ -29,25 +29,37 @@ class Sink:
         self._null_puts.append(put)
         return put
 
+
+    def idempotent_next(self, idempotency_counter):
+        """
+        Call `idempotent_next` on all Puts in this sink
+        """
+        for put in self._puts.values():
+            put.idempotent_next(idempotency_counter)
+        for put in self._null_puts:
+            put.idempotent_next(idempotency_counter)
+    
+
+    def get(self):
+        """
+        Get the current processed row value
+        """
+        for put in self._null_puts:
+            put.get()
+        return {key: put.get() for key, put in self._puts.items()}
+
+
     def process(self, source):
         counter = 0
-        with source:
+        with source.opened:
             while True:
                 counter += 1
-                # Reset all piplines for the next iteration
-                for put in self._puts.values():
-                    put.idempotent_next(counter)
-                for put in self._null_puts:
-                    put.idempotent_next(counter)
-                if not source.valid():
-                    break
                 try:
-                    for put in self._null_puts:
-                        put.get()
-                    yield {key: put.get() for key, put in self._puts.items()}
+                    self.idempotent_next(counter)
+                    yield self.get()
                 except SkipRow:
                     continue
-                except StopProcessing:
+                except (StopProcessing, StopIteration):
                     break
     
     def process_all(self, source, return_results=False, *args, **kwargs):
