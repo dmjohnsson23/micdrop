@@ -1,7 +1,7 @@
 from ...base import Source, PipelineItem
 from ...sink import Sink
 from ...transformers import Lookup
-from ...collect import CollectKwargs
+from ...collect import CollectDict
 from typing import Union, Sequence
 from functools import lru_cache
 from sqlalchemy import *
@@ -393,11 +393,11 @@ class LookupTable(Lookup):
         key_column = make_column(table, key_column)
         value_column = make_column(table, value_column)
         with engine.begin() as conn:
-            result = conn.execute(table.select(key_column, value_column)).fetchall()
+            result = conn.execute(select(key_column, value_column)).fetchall()
         super().__init__(dict(result), convert_keys=convert_keys)
 
 
-class CollectQuery(CollectKwargs):
+class CollectQuery(CollectDict):
     """
     Run a query and return the results. Allows you to put multiple values for complex queries.
 
