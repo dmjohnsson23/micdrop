@@ -188,3 +188,37 @@ class TestSqlAlchemy(unittest.TestCase):
         ])
 
     # TODO test remaining classes
+
+    def test_multi(self):
+        self.populate()
+        characters = Table('characters', self.meta,
+            Column('id', Integer, primary_key=True),
+            Column('name', String(255)),
+            Column('race', String(255)),
+            Column('books', String),
+            Column('movies', String),
+        )
+        self.meta.create_all(self.engine, (characters,))
+        source = TableSource(self.engine, self.people, 'id IN (SELECT character FROM book_character UNION SELECT character FROM movie_character)')
+        sink = TableInsertSink(self.engine, characters)
+        source.take('id') >> sink.put('id')
+        source.take('race') >> sink.put('race')
+        with CollectList() as collect:
+            source.take('f_name') >> collect.put()
+            source.take('m_name') >> collect.put()
+            source.take('l_name') >> collect.put()
+            collect >> JoinDelimited(' ') >> sink.put('name')
+        source.take('id') >> \
+            QueryColumn(self.engine, "SELECT title FROM books JOIN book_character ON book = id WHERE character = :value") >> \
+            JoinDelimited('|') >> sink.put('books')
+        source.take('id') >> \
+            QueryColumn(self.engine, "SELECT title FROM movies JOIN movie_character ON movie = id WHERE character = :value") >> \
+            JoinDelimited('|') >> sink.put('movies')
+        sink.process_all(source)
+        with self.engine.connect() as conn:
+            result = conn.execute(select(characters.c.name, characters.c.race, characters.c.books, characters.c.movies))
+            self.assertEqual([r._mapping for r in result.all()], [
+                {'name':'Bilbo Baggins', 'race':'Hobbit', 'books':'The Hobbit|The Lord of the Rings', 'movies':None},
+                {'name':'Perrin Aybara', 'race':'Human', 'books':'The Eye of the World', 'movies':None},
+                {'name':'Peter Parker', 'race':'Human (Mutant)', 'books':None, 'movies':'Spider-Man 1|Spider-Man 2|Spider-Man 3'},
+            ])
