@@ -21,7 +21,7 @@ from functools import lru_cache
 
 class QuerySource(Source):
     """
-    Source to pull from a specific MySql table
+    Source to pull data from MySQL using a query
     """
     def __init__(self, db_cursor, query, params=None):
         """

@@ -3,10 +3,11 @@ Collection of pipeline items that perform various transformation
 """
 __all__ = ('ConvertDatetime', 'ParseDatetime', 'FormatDatetime', 'ParseDate', 'FormatDate', 'ParseBoolean', 'FormatBoolean', 'Lookup', 'StringReplace', 'Default')
 
-from .base import PipelineItem
+from .base import PipelineItem, Source
+from typing import Any,Union
     
 class ConvertDatetime(PipelineItem):
-    def __init__(self, in_format='%Y-%m-%d %H:%I:%S', out_format='%Y-%m-%d %H:%I:%S', in_zero_date=False, out_zero_date=False):
+    def __init__(self, in_format='%Y-%m-%d %H:%M:%S', out_format='%Y-%m-%d %H:%M:%S', in_zero_date=False, out_zero_date=False):
         """
         Convert a string from one date/time format to another
 
@@ -33,7 +34,7 @@ class ConvertDatetime(PipelineItem):
             return datetime.strptime(value, self._in_format).strftime(self._out_format)
 
 class ParseDatetime(PipelineItem):
-    def __init__(self, format='%Y-%m-%d %H:%I:%S', zero_date=False):
+    def __init__(self, format='%Y-%m-%d %H:%M:%S', zero_date=False):
         """
         Read a string as a datetime.datetime object
 
@@ -52,7 +53,7 @@ class ParseDatetime(PipelineItem):
             return datetime.strptime(value, self._format)
     
 class FormatDatetime(PipelineItem):
-    def __init__(self, format='%Y-%m-%d %H:%I:%S', zero_date=False):
+    def __init__(self, format='%Y-%m-%d %H:%M:%S', zero_date=False):
         """
         Format a datetime.datetime object as a string
 
@@ -174,11 +175,20 @@ class Slice(PipelineItem):
             return value[self.start:self.stop:self.step]
 
 class Default(PipelineItem):
-    def __init__(self, value):
+    def __init__(self, value:Union[Source,Any]):
+        """
+        :param value: If a `Source`, get the value from the given source if the current value is None. 
+            If not a `Source`, then value should be a literal static value to use when the current
+            pipeline value is None.
+        """
+        if isinstance(value, type) and issubclass(value, Source):
+            value = value()
         self.value = value
     
     def process(self, value):
         if value is None:
+            if isinstance(self.value, Source):
+                return self.value.get()
             return self.value
         else:
             return value
