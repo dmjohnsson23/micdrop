@@ -96,6 +96,16 @@ class QuerySource(Source):
         self._current_page_offset = 0
         self._iter = None
 
+    def keys(self):
+        with self.engine.begin() as conn:
+            result = conn.execute(
+                # Use a subquery so we can apply limits (we don't need any values, just keys)
+                select(self.query.subquery()).limit(1),
+            self.params)
+            keys = result.keys()
+            result.one_or_none()
+            return keys
+
     def next(self):
         try:
             self._current_value = next(self._iter)
@@ -176,6 +186,8 @@ class TableSource(QuerySource):
         id_col = [col.name for col in pk.columns] if pk is not None else None
         super().__init__(engine, query, id_col=id_col, page_size=page_size)
     
+    def keys(self):
+        self.table.c.keys()
 
     def _next_page(self):
         with self.engine.begin() as conn:
@@ -282,7 +294,7 @@ class TableUpdateSink(QuerySink):
                 make_column(self.table, key), 
                 bindparam(key),
                 self.update_actions.get(key, self.default_update_action)
-            ) for key in self._puts.keys()
+            ) for key in self.keys()
         })
     
     @query.setter
@@ -336,7 +348,7 @@ class TableSink(Sink):
                 make_column(key), 
                 bindparam(key), 
                 self.update_actions.get(key, self.default_update_action)
-            ) for key in self._puts.keys()}
+            ) for key in self.keys()}
         )
 
 

@@ -1,4 +1,5 @@
 from .base import Source, Put, PipelineItem
+from itertools import chain
 __all__ = ('CollectDict', 'CollectList', 'CollectArgsKwargs', 'CollectArgsKwargsTakeMixin', 'CollectFormatString', 'CollectCall', 'CollectValueOther')
 
 class CollectDict(Source):
@@ -22,6 +23,9 @@ class CollectDict(Source):
     _dict: dict = None
     def __init__(self, **pipelines:Source):
         self._puts = {key: item >> Put() for key, item in pipelines.items()}
+    
+    def keys(self):
+        return self._puts.keys()
     
     def get(self):
         if self._dict is None:
@@ -63,6 +67,9 @@ class CollectList(Source):
     _list: list = None
     def __init__(self, *pipelines:Source):
         self._puts = [item >> Put() for item in pipelines]
+    
+    def keys(self):
+        return range(len(self._puts))
     
     def get(self):
         if self._list is None:
@@ -115,6 +122,9 @@ class CollectArgsKwargs(Source):
 
 class CollectArgsKwargsTakeMixin:
     _auto_key = 0
+    def keys(self):
+        return chain(range(len(self._args)), self._kwargs.keys())
+    
     def take(self, key=None) -> Source:
         """
         Take a sub-value from the pipeline; used to split fields or destructure data.

@@ -63,7 +63,7 @@ class NamedTuplesSink(Sink):
     """
 
     def process(self, source, *args, typename='SinkOutput', **kwargs):
-        nt = namedtuple(typename, self._puts.keys())
+        nt = namedtuple(typename, self.keys())
         for data in super().process(source, *args, **kwargs):
             yield nt(**data)
 

@@ -9,6 +9,19 @@ class Source:
     Generic base class for sources. Not used directly; you must subclass to use this.
     """
     _reset_idempotency = None
+    def keys(self):
+        """
+        Get a list of all keys that can be taken with `take`.
+
+        This returns all keys that the source supports, not necessarily those contained in any 
+        particular row.
+
+        Not all source types necessarily implement this method, as it is understood that not all 
+        sources will have well-defined schemas that can be detected. It is likely only useful to
+        implement on origin sources, to enable auto-mapping.
+        """
+        raise NotImplementedError(f'Source.keys is not supported for {self.__class__.__name__}')
+    
     def get(self):
         """
         Get the current value for this pipeline. Should raise either `micdrop.exceptions.StopProcessing`

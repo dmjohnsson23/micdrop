@@ -1,5 +1,7 @@
 # MIC Drop (Migrate, Import, Convert)
 
+**Note: This library is still in development, and the API is expected to change with future improvements.**
+
 Extensible framework/library to migrate data from source to another using a declarative interface. The library makes elaborate (and somewhat unconventional) use of operator overloading to abstract away some boilerplate and allow you to focus on the important part: mapping data.
 
 At its core, the library's operation is quite simple: loop over the rows of the source data, perform some transformations, and output the transformed data to the sink.
@@ -95,8 +97,15 @@ The various types of pipeline items available are reasonably well documented by 
 
 This library is designed for extensibility. Your can write your own sinks, sources, or pipeline items by extending `sink.Sink`, `Source`, and `PipelineItem` respectively. You can also allow arbitrary classes to be used as pipeline items if you implement a method named `to_pipeline_source`, `to_pipeline_item`, or `to_pipeline_put` (Implement any one of the three).
 
+## Priorities
+1. Be easy to use
+2. Handle large volumes of data without issue
+3. Allow for graceful error recovery
+4. Have acceptable performance (with the understanding that data migrations can take a long time when processing large amounts of data)
+
 ## TODOs
 
+* Graceful error recovery (e.g., if a migration is running and an unexpected error occurs, there should be a way to retry or skip)
 * Context managers on Origin Sources are currently conceptually used for a different purpose than context managers on all other sources; rectify this.
 * Pipelines should function as reusable segments without needing the `PipelineSegment` class
     * Have do find a way to do this without breaking the cache/next mechanism, which I don't think we can do without

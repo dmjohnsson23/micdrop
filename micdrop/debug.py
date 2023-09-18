@@ -7,6 +7,9 @@ class InspectPrint(PipelineItem):
     def __init__(self, *print_args, **print_kwargs):
         self._print_args = print_args
         self._print_kwargs = print_kwargs
+    
+    def keys(self):
+        return self._prev.keys()
 
     def get(self):
         value = self._prev.get()

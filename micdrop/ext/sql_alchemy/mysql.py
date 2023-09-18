@@ -28,7 +28,7 @@ class MySQLTableInsertSink(QuerySink):
     def query(self):
         """Return the query, with the values bound. (Only the "raw" query is stored, initially)"""
         query = self._query.values(
-            {key:bindparam(key) for key in self._puts.keys()}
+            {key:bindparam(key) for key in self.keys()}
         )
         if self.on_duplicate_key_update:
             return query.on_duplicate_key_update({
@@ -36,7 +36,7 @@ class MySQLTableInsertSink(QuerySink):
                     make_column(self.table, key), 
                     query.inserted[key],
                     self.update_actions.get(key, self.default_update_action)
-                ) for key in self._puts.keys()
+                ) for key in self.keys()
             })
         else:
             return query

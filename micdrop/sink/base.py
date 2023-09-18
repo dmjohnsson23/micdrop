@@ -1,9 +1,9 @@
 from __future__ import annotations
-from ..base import Put, Put
+from ..base import Put
 from ..exceptions import StopProcessing, SkipRow
 __all__ = ('Sink',)
 
-class Sink:
+class Sink(Put):
     """
     The base Sink class. Does nothing with put values, other than output the collected dict via `process`.
 
@@ -39,6 +39,17 @@ class Sink:
         for put in self._null_puts:
             put.idempotent_next(idempotency_counter)
     
+    def keys(self):
+        """
+        Get a list of all keys put in this sink.
+        """
+        keys = set(self._puts.keys())
+        if self._prev is not None:
+            try:
+                keys.update(self._prev.keys())
+            except NotImplementedError:
+                raise RuntimeError('Keys for this Sink are indeterminate')
+        return keys
 
     def get(self):
         """
@@ -46,7 +57,15 @@ class Sink:
         """
         for put in self._null_puts:
             put.get()
-        return {key: put.get() for key, put in self._puts.items()}
+        whole_put = self._prev.get() if self._prev is not None else None
+        put_values = {key: put.get() for key, put in self._puts.items()}
+        if whole_put is None:
+            return put_values
+        if not put_values:
+            return whole_put
+        if isinstance(whole_put, dict):
+            return {**whole_put, **put_values}
+        raise TypeError('Sink received a non-dict value directly, and also received multiple puts.')
 
 
     def process(self, source):

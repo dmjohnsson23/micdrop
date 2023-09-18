@@ -3,7 +3,6 @@ Extension integrating with the csv module in the python standard library.
 """
 from ..base import Source
 from ..sink import Sink
-from ..exceptions import StopProcessing
 from csv import DictReader, DictWriter
 from io import IOBase
 
@@ -16,10 +15,14 @@ class CSVSource(Source):
         self._file = file
         self._encoding = encoding
         self._reader_opts = csv_reader_options
-        self._csv = None
+        self._reader = None
+        self._iter = None
+    
+    def keys(self):
+        return self._reader.fieldnames
 
     def next(self):
-        self._current_value = next(self._csv) # Deliberately allow StopIteration to propagate
+        self._current_value = next(self._iter) # Deliberately allow StopIteration to propagate
         self._current_index += 1
     
     def get(self):
@@ -31,9 +34,10 @@ class CSVSource(Source):
     def open(self):
         if not isinstance(self._file, IOBase):
             self._file = open(self._file, 'r', newline='', encoding=self._encoding)
-        self._csv = iter(DictReader(
+        self._reader = DictReader(
             map(lambda line: line.replace('\0', ''), self._file), # Strip any null bytes in the string (I've found these in some malformed CSVs)
-            **self._reader_opts))
+            **self._reader_opts)
+        self._iter = iter(self._reader)
         self._current_index = -1
     
     def close(self):
@@ -55,7 +59,7 @@ class CSVSink(Sink):
         if not isinstance(self._file, IOBase):
             self._file = open(self._file, 'w', newline='', encoding=self._encoding)
         if 'fieldnames' not in self._writer_opts:
-            self._writer_opts['fieldnames'] = self._puts.keys() 
+            self._writer_opts['fieldnames'] = self.keys() 
         writer = DictWriter(self._file, **self._writer_opts)
         if write_header:
             writer.writeheader()
