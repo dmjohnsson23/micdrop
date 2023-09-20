@@ -1,11 +1,9 @@
 from sqlalchemy import *
-from ...base import Source, PipelineItem
+from ...pipeline import Source, PipelineItem,  Lookup, CollectDict
 from ...sink import Sink
-from ...transformers import Lookup
-from ...collect import CollectDict
 from typing import Union, Sequence, Mapping
 from functools import lru_cache
-from enum import Enum, auto
+from enum import Enum
 __all__ = (
     'make_table', 'make_column', 'make_columns', 'UpdateAction',
     'QuerySource', 'TableSource',

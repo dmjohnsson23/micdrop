@@ -1,5 +1,5 @@
 from .base import Source
-from .exceptions import SkipRowException, StopProcessingException
+from ..exceptions import SkipRowException, StopProcessingException
 from typing import Callable
 __all__ = ('FilteredSource',)
 

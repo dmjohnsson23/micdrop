@@ -9,7 +9,7 @@ class MySQLTableInsertSink(QuerySink):
     """
     Special table insert sink that can take advantage of the MySQL-specific ``ON DUPLICATE KEY UPDATE`` clause.
     """
-    def __init__(self, engine:Engine, table:Union[Table,str], *, on_duplicate_key_update=False, default_update_action="COALESCE", update_actions:dict={}):
+    def __init__(self, engine:Engine, table:Union[Table,str], *, on_duplicate_key_update=False, default_update_action:UpdateAction=UpdateAction.coalesce, update_actions:Mapping[str,UpdateAction]={}):
         """
         :param engine: An SQLAlchemy Engine object to connect to the database
         :param table: The table or view to pull data from
@@ -31,11 +31,10 @@ class MySQLTableInsertSink(QuerySink):
             {key:bindparam(key) for key in self.keys()}
         )
         if self.on_duplicate_key_update:
-            return query.on_duplicate_key_update({
-                key:make_value_func(
+            return self._query.values({
+                key:UpdateAction(self.update_actions.get(key, self.default_update_action)).func(
                     make_column(self.table, key), 
-                    query.inserted[key],
-                    self.update_actions.get(key, self.default_update_action)
+                    bindparam(key),
                 ) for key in self.keys()
             })
         else:

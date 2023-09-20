@@ -2,10 +2,7 @@ import unittest
 import sys, os
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.basename(__file__), '../')))
 from micdrop import *
-from micdrop.sink import *
-from micdrop.exceptions import StopProcessingException
 from micdrop.ext.sql_alchemy import *
-from micdrop.process import *
 from sqlalchemy import *
 
 

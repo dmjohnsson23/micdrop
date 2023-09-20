@@ -1,5 +1,5 @@
 from __future__ import annotations
-__all__ = ('PipelineItem', 'Source', 'Put', 'Take', 'TakeAttr', 'TakeIndex', 'ContinuedPut', 'Call', 'Invoke', 'InvokeMethod')
+__all__ = ('PipelineItemBase', 'PipelineItem', 'Source', 'Put', 'Take', 'TakeAttr', 'TakeIndex', 'ContinuedPut', 'Call', 'Invoke', 'InvokeMethod')
 from typing import Callable
 from contextlib import contextmanager
 

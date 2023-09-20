@@ -1,5 +1,5 @@
 from .base import Sink
-from ..base import PipelineItemBase
+from ..pipeline import PipelineItemBase
 from ..exceptions import SkipRowException, StopProcessingException
 __all__ = ('MultiSink',)
 

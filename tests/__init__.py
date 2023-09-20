@@ -2,9 +2,6 @@ import unittest
 import sys, os
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.basename(__file__), '../')))
 from micdrop import *
-from micdrop.sink import *
-from micdrop.exceptions import *
-from micdrop.process import *
 
 class TestPipeline(unittest.TestCase):
     def test_loose(self):

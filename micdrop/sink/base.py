@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ..base import Put
+from ..pipeline import Put
 __all__ = ('Sink',)
 
 class Sink(Put):

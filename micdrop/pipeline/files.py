@@ -1,5 +1,5 @@
 from .base import PipelineItem, Source, Put
-from .exceptions import SkipRowException, StopProcessingException
+from ..exceptions import SkipRowException, StopProcessingException
 from time import time_ns
 import os, shutil
 from enum import Enum
