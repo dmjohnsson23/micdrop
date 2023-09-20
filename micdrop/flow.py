@@ -3,8 +3,13 @@ from typing import Callable
 from .base import Put, PipelineItem, Source
 from .collect import CollectArgsKwargsTakeMixin
 from .utils import DeferredOperand
-from .exceptions import SkipRow as SkipRowException, StopProcessing as StopProcessingException
-__all__ = ('Choose', 'Branch', 'Coalesce', 'SkipRow', 'StopProcessing', 'StopIf', 'SkipIf', 'SentinelStop', 'SentinelSkip')
+from .exceptions import SkipRowException, StopProcessingException
+__all__ = (
+    'Choose', 'Branch', 'Coalesce', 
+    'SkipRow', 'StopProcessing', 'StopIf', 'SkipIf', 
+    'SentinelStop', 'SentinelSkip', 'SentinelStopUnless', 'SentinelSkipUnless', 
+    'StopIfRepeat', 'SkipIfRepeat'
+)
 
 class Choose(PipelineItem):
     """
@@ -203,6 +208,16 @@ class BranchCase(CollectArgsKwargsTakeMixin, Source):
         super().idempotent_next(idempotency_counter)
         self._branch.idempotent_next(idempotency_counter)
 
+    def open(self):
+        if not self._branch.is_open:
+            self._branch.open()
+        super().open()
+
+    def close(self):
+        if self._branch.is_open:
+            self._branch.close()
+        super().close()
+
 
 class Coalesce(Source):
     """
@@ -236,17 +251,31 @@ class Coalesce(Source):
         self._puts.append(put)
         return put
 
+    def open(self):
+        for put in self._puts:
+            if not put.is_open:
+                put.open()
+        super().open()
+
+    def close(self):
+        for put in self._puts:
+            if put.is_open:
+                put.close()
+        super().close()
+
 
 class SkipRow(Source):
     """
     Used with a `Choice` or `Branch` to skip the current row (e.g. if the source data represents something not supported in the target sink)
+
+    `SkipIf` or `SentinelSkip` cover most of the same use cases, and are simpler, so prefer one of them if possible.
 
     Example::
 
         # This will only process rows where ``switch_me == 'good'``
         with source.take('switch_me') >> Choice() as choice:
             choice >> (choice.value == 'good')
-            SkipRow >> choice.fallback()
+            SkipRow() >> choice.fallback()
     """
     def get(self):
         raise SkipRowException()
@@ -289,6 +318,9 @@ class SkipIf(PipelineItem):
 
 
 class SentinelStop(StopIf):
+    """
+    Stops processing if the input value matches the given sentinel value; otherwise forward the value unchanged.
+    """
     def __init__(self, sentinel_value, identity = False):
         if identity:
             super().__init__(lambda val: val is sentinel_value)
@@ -297,8 +329,61 @@ class SentinelStop(StopIf):
         
 
 class SentinelSkip(SkipIf):
+    """
+    Skips the row if the input value matches the given sentinel value; otherwise forward the value unchanged.
+    """
     def __init__(self, sentinel_value, identity = False):
         if identity:
             super().__init__(lambda val: val is sentinel_value)
         else:
             super().__init__(lambda val: val == sentinel_value)
+
+
+class SentinelStopUnless(StopIf):
+    """
+    Stops processing if the input value does not match the given sentinel value; otherwise forward the value unchanged.
+    """
+    def __init__(self, sentinel_value, identity = False):
+        if identity:
+            super().__init__(lambda val: val is not sentinel_value)
+        else:
+            super().__init__(lambda val: val != sentinel_value)
+        
+
+class SentinelSkipUnless(SkipIf):
+    """
+    Skips the row if the input value does not match the given sentinel value; otherwise forward the value unchanged.
+    """
+    def __init__(self, sentinel_value, identity = False):
+        if identity:
+            super().__init__(lambda val: val is not sentinel_value)
+        else:
+            super().__init__(lambda val: val != sentinel_value)
+
+
+class StopIfRepeat(PipelineItem):
+    """
+    Stop if the value is the same as on the previous iteration, otherwise forward the value unchanged.
+    """
+    def __init__(self):
+        self._last_seen = None
+    
+    def process(self, value):
+        if value == self._last_seen:
+            raise StopProcessingException()
+        self._last_seen = value
+        return value
+        
+
+class SkipIfRepeat(PipelineItem):
+    """
+    Skip if the value is the same as on the previous iteration, otherwise forward the value unchanged.
+    """
+    def __init__(self):
+        self._last_seen = None
+    
+    def process(self, value):
+        if value == self._last_seen:
+            raise SkipRowException()
+        self._last_seen = value
+        return value

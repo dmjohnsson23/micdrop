@@ -1,8 +1,9 @@
 from .base import Sink
-from ..exceptions import SkipRow, StopProcessing
+from ..base import PipelineItemBase
+from ..exceptions import SkipRowException, StopProcessingException
 __all__ = ('MultiSink',)
 
-class MultiSink:
+class MultiSink(PipelineItemBase):
     """
     Sink wrapper that allows one source to send data to multiple sinks with only one process loop
     """
@@ -18,24 +19,22 @@ class MultiSink:
     
     def __getattr__(self, name):
         return self._named_sinks[name]
+    
+    def idempotent_next(self, idempotency_counter):
+        for sink in self._sinks:
+            sink.idempotent_next(idempotency_counter)
 
-    def process(self, source):
-        counter = 0
-        with source.opened:
-            while True:
-                counter += 1
-                try:
-                    for sink in self._sinks:
-                        sink.idempotent_next(counter)
-                    yield [sink.get() for sink in self._sinks]
-                except SkipRow:
-                    continue
-                except (StopProcessing, StopIteration):
-                    break
+    def get(self):
+        return [sink.get() for sink in self._sinks]
 
-    def process_all(self, source, return_results=False, *args, **kwargs):
-        if return_results:
-            return list(self.process(source, *args, **kwargs))
-        else:
-            for _ in self.process(source, *args, **kwargs):
-                pass
+    def open(self):
+        for sink in self._sinks:
+            if not sink.is_open:
+                sink.open()
+        super().open()
+
+    def close(self):
+        for sink in self._sinks:
+            if sink.is_open:
+                sink.close()
+        super().close()

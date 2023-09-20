@@ -62,10 +62,11 @@ class NamedTuplesSink(Sink):
     Good for testing, or for converting between two internal representations of the same data.
     """
 
-    def process(self, source, *args, typename='SinkOutput', **kwargs):
-        nt = namedtuple(typename, self.keys())
-        for data in super().process(source, *args, **kwargs):
-            yield nt(**data)
+    def __init__(self, typename='SinkOutput'):
+        self.type = namedtuple(typename, self.keys())
+    
+    def get(self):
+        return self.type(**super().get())
 
 class CallSink(Sink):
     """
@@ -81,6 +82,5 @@ class CallSink(Sink):
         super().__init__()
         self.function = function
 
-    def process(self, source, *args, **kwargs):
-        for data in super().process(source, *args, **kwargs):
-            yield self.function(**data)
+    def get(self):
+        return self.function(**super().get())

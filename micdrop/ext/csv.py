@@ -32,6 +32,7 @@ class CSVSource(Source):
         return self._current_index
     
     def open(self):
+        super().open()
         if not isinstance(self._file, IOBase):
             self._file = open(self._file, 'r', newline='', encoding=self._encoding)
         self._reader = DictReader(
@@ -41,6 +42,7 @@ class CSVSource(Source):
         self._current_index = -1
     
     def close(self):
+        super().close()
         self._file.close()
 
 

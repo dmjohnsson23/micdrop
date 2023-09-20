@@ -115,3 +115,13 @@ class AppliedPipelineSegment(PipelineItem):
         self._segment._outlet.idempotent_next((self._applied_id, self._reset_idempotency))
         self._segment._inlet_proxy.set(value)
         return self._segment._outlet.get()
+
+    def open(self):
+        if not self._segment._outlet.is_open:
+            self._segment._outlet.open()
+        super().open()
+
+    def close(self):
+        if self._segment._outlet.is_open:
+            self._segment._outlet.close()
+        super().close()

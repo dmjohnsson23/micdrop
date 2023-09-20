@@ -45,6 +45,18 @@ class CollectDict(Source):
         self._puts[key] = put
         return put
 
+    def open(self):
+        for put in self._puts.values():
+            if not put.is_open:
+                put.open()
+        super().open()
+
+    def close(self):
+        for put in self._puts.values():
+            if put.is_open:
+                put.close()
+        super().close()
+
 
 class CollectList(Source):
     """
@@ -89,6 +101,18 @@ class CollectList(Source):
         self._puts.append(put)
         return put
 
+    def open(self):
+        for put in self._puts:
+            if not put.is_open:
+                put.open()
+        super().open()
+
+    def close(self):
+        for put in self._puts:
+            if put.is_open:
+                put.close()
+        super().close()
+
 
 class CollectArgsKwargs(Source):
     """
@@ -118,6 +142,24 @@ class CollectArgsKwargs(Source):
             put.idempotent_next(idempotency_counter)
         for put in self._kwargs.values():
             put.idempotent_next(idempotency_counter)
+
+    def open(self):
+        for put in self._args:
+            if not put.is_open:
+                put.open()
+        for put in self._kwargs.values():
+            if not put.is_open:
+                put.open()
+        super().open()
+
+    def close(self):
+        for put in self._args:
+            if put.is_open:
+                put.close()
+        for put in self._kwargs.values():
+            if put.is_open:
+                put.close()
+        super().close()
 
 
 class CollectArgsKwargsTakeMixin:
@@ -316,3 +358,15 @@ class CollectValueOther(Source):
         Retrieve the "Other" string.
         """
         return self.take(1)
+
+    def open(self):
+        for put in self._puts:
+            if not put.is_open:
+                put.open()
+        super().open()
+
+    def close(self):
+        for put in self._puts:
+            if put.is_open:
+                put.close()
+        super().close()

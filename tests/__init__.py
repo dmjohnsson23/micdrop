@@ -3,7 +3,8 @@ import sys, os
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.basename(__file__), '../')))
 from micdrop import *
 from micdrop.sink import *
-from micdrop.exceptions import StopProcessing as StopProcessingException
+from micdrop.exceptions import *
+from micdrop.process import *
 
 class TestPipeline(unittest.TestCase):
     def test_loose(self):
@@ -175,7 +176,6 @@ class TestPipeline(unittest.TestCase):
             choice.idempotent_next(1)
             self.assertEqual(choice.get(), 1)
             choice.idempotent_next(2)
-            from micdrop.exceptions import SkipRow as SkipRowException
             with self.assertRaises(SkipRowException):
                 choice.get()
             choice.idempotent_next(3)
@@ -241,7 +241,7 @@ class TestSourceSink(unittest.TestCase):
         source >> sink.put('id')
         StaticSource('Human') >> sink.put('race')
 
-        self.assertEqual(sink.process_all(source, True), [
+        self.assertEqual(process_all(sink, True), [
             {'id':0, 'race':'Human'},
             {'id':1, 'race':'Human'},
             {'id':2, 'race':'Human'},
@@ -265,7 +265,7 @@ class TestSourceSink(unittest.TestCase):
 
         source.take('race') >> sink.put('race')
 
-        self.assertEqual(sink.process_all(source, True), [
+        self.assertEqual(process_all(sink, True), [
             {
                 'record number': 1,
                 'full name': "Bilbo Baggins",
@@ -298,7 +298,7 @@ class TestSourceSink(unittest.TestCase):
         source.take('race') >> sink.s2.put('race')
         source.take('occupation') >> sink.s2.put('occupation')
 
-        self.assertEqual(sink.process_all(source, True), [
+        self.assertEqual(process_all(sink, True), [
             [
                 {'f_name': 'Bilbo', 'l_name': 'Baggins'},
                 {'race': 'Hobbit', 'occupation': 'Burglar'},
@@ -323,7 +323,7 @@ class TestSourceSink(unittest.TestCase):
             source.take('occupation') >> (choice.value == 'Human')
             SkipRow() >> choice.fallback()
             choice >> sink.put('occupation')
-        self.assertEqual(sink.process_all(source, True), [
+        self.assertEqual(process_all(sink, True), [
             {'f_name': 'Peter', 'occupation': 'Photographer'},
             {'f_name': 'Perrin', 'occupation': 'Blacksmith'},
         ])

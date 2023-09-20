@@ -3,12 +3,90 @@ __all__ = ('PipelineItem', 'Source', 'Put', 'Take', 'TakeAttr', 'TakeIndex', 'Co
 from typing import Callable
 from contextlib import contextmanager
 
+class PipelineItemBase:
+    _is_open = False
+    _reset_idempotency = None
 
-class Source:
+    def next(self):
+        """
+        Advance to the next item in the pipeline. May raise `micdrop.exceptions.StopProcessingException` or
+        `micdrop.exceptions.StopIteration` if the source is exhausted, or may allow `get` 
+        to do so instead.
+        """
+        pass
+    
+    def idempotent_next(self, idempotency_counter):
+        """
+        Clear the current value and advance to the next row in the pipeline.
+
+        This propagates to any downstream sources. It is safe to call multiple times so long as you
+        provide the same idempotency counter each time; subsequent calls will be no-ops.
+        """
+        if idempotency_counter == self._reset_idempotency:
+            return
+        self.next()
+        self._reset_idempotency = idempotency_counter
+    
+    def get(self):
+        """
+        Get the current value for this pipeline. Should raise either `micdrop.exceptions.StopProcessingException`
+        or `StopIteration` once the source is exhausted, if `next` did not already do so.
+        """
+        raise NotImplementedError('`get` must be overridden')
+
+    def open(self):
+        self._is_open = True
+
+    def close(self):
+        self._is_open = False
+
+    @property
+    def is_open(self):
+        return self._is_open
+
+    @property
+    @contextmanager
+    def opened(self):
+        """
+        Context manager to open and close the source/sink for processing.
+
+        Note that this is different from using the source as a context manager directly. This
+        method actually calls `open` and `close`, whereas the other is just for syntactic sugar.
+
+        This is used internally by `Sink.process`, and of limited use elsewhere unless you are
+        trying to implement your own processing loop.
+
+        ::
+
+            # Use a source as a context manager directly when building the pipeline...
+            with IterableSource(dicts) as source:
+                source.take('thing1') >> sink.put('thing_1')
+                source.take('thing2') >> sink.put('thing_2')
+
+            # ...but use source.opened when actually processing the source.
+            def process_source(source):
+                '''Yields all the rows of the source'''
+                counter = 0
+                with source.opened:
+                    while True:
+                        counter += 1
+                        try:
+                            source.idempotent_next(counter)
+                            yield source.get()
+                        except SkipRowException:
+                            continue
+                        except (StopProcessingException, StopIteration):
+                            break
+        """
+        self.open()
+        yield self
+        self.close()
+
+
+class Source(PipelineItemBase):
     """
     Generic base class for sources. Not used directly; you must subclass to use this.
     """
-    _reset_idempotency = None
     def keys(self):
         """
         Get a list of all keys that can be taken with `take`.
@@ -22,13 +100,6 @@ class Source:
         """
         raise NotImplementedError(f'Source.keys is not supported for {self.__class__.__name__}')
     
-    def get(self):
-        """
-        Get the current value for this pipeline. Should raise either `micdrop.exceptions.StopProcessing`
-        or `StopIteration` once the source is exhausted, if `next` did not already do so.
-        """
-        raise NotImplementedError('Source.get must be overridden')
-    
     def get_index(self):
         """
         Get the index of the current value for this pipeline.
@@ -36,25 +107,6 @@ class Source:
         Not all sources are indexed, so in many cases this will return `None`
         """
         return None
-    
-    def idempotent_next(self, idempotency_counter):
-        """
-        Clear the current value and advance to the next row in the pipeline.
-
-        This propagates to any downstream sources. It is safe to call multiple times so long as you
-        provide the same idempotency counter each time; subsequent calls will be no-ops.
-        """
-        if idempotency_counter == self._reset_idempotency:
-            return
-        self.next()
-        self._reset_idempotency = idempotency_counter
-
-    def next(self):
-        """
-        Advance to the next item in the pipeline. May raise `micdrop.exceptions.StopProcessing` or
-        `StopIteration` if the source is exhausted, or may allow `get` to do so instead.
-        """
-        pass
 
     def __rshift__(self, next):
         next = Put.create(next)
@@ -95,50 +147,6 @@ class Source:
         """
         return self >> TakeIndex()
     
-    def open(self):
-        pass
-
-    def close(self):
-        pass
-
-    @property
-    @contextmanager
-    def opened(self):
-        """
-        Context manager to open an close the source.
-
-        Note that this is different from using the source as a context manager directly. This
-        method actually calls `open` and `close`, whereas the other is just for syntactic sugar.
-
-        This is used internally by `Sink.process`, and of limited use elsewhere unless you are
-        trying to implement your own processing loop.
-
-        ::
-
-            # Use a source as a context manager directly when building the pipeline...
-            with IterableSource(dicts) as source:
-                source.take('thing1') >> sink.put('thing_1')
-                source.take('thing2') >> sink.put('thing_2')
-
-            # ...but use source.opened when actually processing the source.
-            def process_source(source):
-                '''Yields all the rows of the source'''
-                counter = 0
-                with source.opened:
-                    while True:
-                        counter += 1
-                        try:
-                            source.idempotent_next(counter)
-                            yield source.get()
-                        except SkipRow:
-                            continue
-                        except (StopProcessing, StopIteration):
-                            break
-        """
-        self.open()
-        yield self
-        self.close()
-    
     def __enter__(self):
         return self
     
@@ -155,9 +163,8 @@ class Source:
             return PipelineItem.create(item)
 
 
-class Put:
+class Put(PipelineItemBase):
     _prev: Source = None
-    _reset_idempotency = None
 
     def get(self):
         return self._prev.get()
@@ -168,16 +175,7 @@ class Put:
     
     def idempotent_next(self, idempotency_counter):
         self._prev.idempotent_next(idempotency_counter)
-        if idempotency_counter == self._reset_idempotency:
-            return
-        self.next()
-        self._reset_idempotency = idempotency_counter
-
-    def next(self):
-        """
-        Advance to the next item in the pipeline
-        """
-        pass
+        super().idempotent_next(idempotency_counter)
 
     @property
     def then(self) -> ContinuedPut:
@@ -195,6 +193,16 @@ class Put:
                 value >> int >> sink.put('as_int')
         """
         return ContinuedPut(self)
+
+    def open(self):
+        super().open()
+        if self._prev is not None and not self._prev.is_open:
+            self._prev.open()
+
+    def close(self):
+        super().close()
+        if self._prev is not None and self._prev.is_open:
+            self._prev.close()
 
     @classmethod
     def create(cls, item):
@@ -247,6 +255,14 @@ class PipelineItem(Put, Source):
             return Call(item)
         else:
             raise TypeError(f"Can't use {type(item)} as a PipelineItem")
+
+    def open(self):
+        Put.open(self)
+        Source.open(self)
+
+    def close(self):
+        Source.close(self)
+        Put.close(self)
 
 
 class ContinuedPut(PipelineItem):

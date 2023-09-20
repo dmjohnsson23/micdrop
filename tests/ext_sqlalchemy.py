@@ -3,8 +3,9 @@ import sys, os
 sys.path.insert(0, os.path.realpath(os.path.join(os.path.basename(__file__), '../')))
 from micdrop import *
 from micdrop.sink import *
-from micdrop.exceptions import StopProcessing as StopProcessingException
+from micdrop.exceptions import StopProcessingException
 from micdrop.ext.sql_alchemy import *
+from micdrop.process import *
 from sqlalchemy import *
 
 
@@ -92,7 +93,7 @@ class TestSqlAlchemy(unittest.TestCase):
         source.take('f_name') >> sink.put('f_name')
         source.take('l_name') >> sink.put('l_name')
         source.take('occupation') >> sink.put('occupation')
-        results = sink.process_all(source, True)
+        results = process_all(sink, True)
         self.assertEqual(results, [
             {'f_name':'Robert', 'l_name':'Jordan', 'occupation':'Author'},
             {'f_name':'J.R.R.', 'l_name':'Tolkien', 'occupation':'Author'},
@@ -108,7 +109,7 @@ class TestSqlAlchemy(unittest.TestCase):
         source.take('l_name') >> sink.put('l_name')
         source.take('occupation') >> sink.put('occupation')
         source.take('race') >> sink.put('race')
-        results = sink.process_all(source, True)
+        results = process_all(sink, True)
         self.assertEqual(results, self.test_people)
     
     def test_query_sink(self):
@@ -120,7 +121,7 @@ class TestSqlAlchemy(unittest.TestCase):
         sink = QuerySink(self.engine, update(self.people).values(race=bindparam('new')).where(self.people.c.race == bindparam('old')))
         source.take('old') >> sink.put('old')
         source.take('new') >> sink.put('new')
-        results = sink.process_all(source)
+        process_all(sink)
         with self.engine.connect() as conn:
             result = conn.execute(select(self.people.c.f_name, self.people.c.l_name, self.people.c.occupation, self.people.c.race))
             self.assertEqual([r._mapping for r in result.all()], [
@@ -139,7 +140,7 @@ class TestSqlAlchemy(unittest.TestCase):
         source.take('l_name') >> sink.put('l_name')
         source.take('occupation') >> sink.put('occupation')
         source.take('race') >> sink.put('race')
-        sink.process_all(source)
+        process_all(sink)
         with self.engine.connect() as conn:
             result = conn.execute(select(self.people.c.f_name, self.people.c.l_name, self.people.c.occupation, self.people.c.race))
             self.assertEqual([r._mapping for r in result.all()], self.test_people)
@@ -154,7 +155,7 @@ class TestSqlAlchemy(unittest.TestCase):
         sink = TableUpdateSink(self.engine, self.people)
         source.take('id') >> sink.put('id')
         source.take('occupation') >> sink.put('occupation')
-        sink.process_all(source)
+        process_all(sink)
         with self.engine.connect() as conn:
             result = conn.execute(select(self.people.c.f_name, self.people.c.l_name, self.people.c.occupation, self.people.c.race))
             self.assertEqual([r._mapping for r in result.all()], [
@@ -180,7 +181,7 @@ class TestSqlAlchemy(unittest.TestCase):
         source.take('author') >> \
             LookupTable(self.engine, self.people, self.people.c.id, self.people.c.l_name) >> \
             sink.put('author')
-        results = sink.process_all(source, True)
+        results = process_all(sink, True)
         self.assertEqual(results, [
             {'title':'The Eye of the World', 'author':'Jordan'},
             {'title':'The Hobbit', 'author':'Tolkien'},
@@ -214,7 +215,7 @@ class TestSqlAlchemy(unittest.TestCase):
         source.take('id') >> \
             QueryColumn(self.engine, "SELECT title FROM movies JOIN movie_character ON movie = id WHERE character = :value") >> \
             JoinDelimited('|') >> sink.put('movies')
-        sink.process_all(source)
+        process_all(sink)
         with self.engine.connect() as conn:
             result = conn.execute(select(characters.c.name, characters.c.race, characters.c.books, characters.c.movies))
             self.assertEqual([r._mapping for r in result.all()], [

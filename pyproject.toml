@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "micdrop"
-version = "0.1.0"
+version = "0.2.1"
 description = "Library with declaritive interface to aid in building tools for migrating, mapping, importing, converting, and transforming data."
 authors = ["Dominick Johnson <dominick.johnson@tylertech.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.7"
 sqlalchemy = {version = "^2.0.20", optional = true}
 
 [tool.poetry.extras]

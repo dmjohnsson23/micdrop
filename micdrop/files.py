@@ -1,9 +1,25 @@
 from .base import PipelineItem, Source, Put
-from .exceptions import SkipRow, StopProcessing
+from .exceptions import SkipRowException, StopProcessingException
 from time import time_ns
 import os, shutil
-from typing import Literal
-__all__ = ('WriteFile', 'CopyFile', 'MoveFile', 'ReadFile')
+from enum import Enum
+__all__ = ('WriteFile', 'CopyFile', 'MoveFile', 'ReadFile', 'FileOnFail')
+
+class FileOnFail(Enum):
+    fail = 'fail'
+    stop = 'stop'
+    skip = 'skip'
+    ignore = 'ignore'
+
+    def __call__(self, exception:Exception):
+        if self is FileOnFail.skip:
+            raise SkipRowException()
+        if self is FileOnFail.stop:
+            raise StopProcessingException()
+        if self is FileOnFail.ignore:
+            return
+        raise exception
+
 
 class WriteFile(PipelineItem):
     """
@@ -12,10 +28,10 @@ class WriteFile(PipelineItem):
     You can optionally control the name using the `put_name` method or the `name_pipeline` parameter.
     (These are equivalent). Otherwise, uses `time_ns()` to name the file.
     """
-    def __init__(self, save_dir: str, is_binary=None, name_pipeline:Source = None, *, on_fail:Literal['stop','skip','ignore'] = None):
+    def __init__(self, save_dir: str, is_binary=None, name_pipeline:Source = None, *, on_fail:FileOnFail = FileOnFail.fail):
         self.save_dir = save_dir
         self.is_binary = is_binary
-        self.on_fail = on_fail
+        self.on_fail = FileOnFail(on_fail)
         self._put_name = name_pipeline >> Put()
     
     def put_name(self):
@@ -35,7 +51,7 @@ class WriteFile(PipelineItem):
             with open(name, 'wb' if is_binary else 'w') as file:
                 file.write(value)
         except OSError as e:
-            _fail(self.on_fail, e)
+            self.on_fail(e)
         return name
     
 
@@ -43,10 +59,10 @@ class _FilePipelineItemBase2(PipelineItem):
     """
     Base class for 2-file operations (move, copy)
     """
-    def __init__(self, from_dir: str, to_dir: str, name_pipeline:Source = None, *, on_fail:Literal['stop','skip','ignore'] = None):
+    def __init__(self, from_dir: str, to_dir: str, name_pipeline:Source = None, *, on_fail:FileOnFail = FileOnFail.fail):
         self.from_dir = from_dir
         self.to_dir = to_dir
-        self.on_fail = on_fail
+        self.on_fail = FileOnFail(on_fail)
         self._put_name = name_pipeline
     
     def put_name(self):
@@ -58,7 +74,6 @@ class CopyFile(_FilePipelineItemBase2):
     """
     Given an input filename, copy the file to a new location and return the new name
     """
-
     def process(self, value):
         if self._put_name is None:
             name = os.path.basename(value)
@@ -68,14 +83,14 @@ class CopyFile(_FilePipelineItemBase2):
         try:
             shutil.copy2(os.path.join(self.from_dir, value), name)
         except OSError as e:
-            _fail(self.on_fail, e)
+            self.on_fail(e)
         return name
     
+
 class MoveFile(_FilePipelineItemBase2):
     """
     Given an input filename, copy the file to a new location and return the new name
     """
-
     def process(self, value):
         if self._put_name is None:
             name = os.path.basename(value)
@@ -85,14 +100,18 @@ class MoveFile(_FilePipelineItemBase2):
         try:
             shutil.move(os.path.join(self.from_dir, value), name)
         except OSError as e:
-            _fail(self.on_fail, e)
+            self.on_fail(e)
         return name
 
+
 class ReadFile(PipelineItem):
-    def __init__(self, base_dir, is_binary=True, *open_args, on_fail:Literal['stop','skip','ignore'] = None, **open_kwargs):
+    """
+    Receives a filename as input and outputs the file contents.
+    """
+    def __init__(self, base_dir, is_binary=True, *open_args, on_fail:FileOnFail = FileOnFail.fail, **open_kwargs):
         self.base_dir = base_dir
         self.is_binary = is_binary
-        self.on_fail = on_fail
+        self.on_fail = FileOnFail(on_fail)
         self.open_args = open_args
         self.open_kwargs = open_kwargs
     
@@ -101,14 +120,4 @@ class ReadFile(PipelineItem):
             with open(os.path.join(self.base_dir, value), 'rb' if self.is_binary else 'r') as file:
                 return file.read()
         except OSError as e:
-            _fail(self.on_fail, e)
-
-
-def _fail(on_fail:Literal['stop','skip','ignore'], exception:Exception):
-    if on_fail == 'skip':
-        raise SkipRow()
-    if on_fail == 'stop':
-        raise StopProcessing()
-    if on_fail == 'ignore':
-        return
-    raise exception
+            self.on_fail(e)

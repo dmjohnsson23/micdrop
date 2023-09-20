@@ -1,6 +1,5 @@
 from __future__ import annotations
 from ..base import Put
-from ..exceptions import StopProcessing, SkipRow
 __all__ = ('Sink',)
 
 class Sink(Put):
@@ -67,23 +66,20 @@ class Sink(Put):
             return {**whole_put, **put_values}
         raise TypeError('Sink received a non-dict value directly, and also received multiple puts.')
 
+    def open(self):
+        for put in self._puts.values():
+            if not put.is_open:
+                put.open()
+        for put in self._null_puts:
+            if not put.is_open:
+                put.open()
+        super().open()
 
-    def process(self, source):
-        counter = 0
-        with source.opened:
-            while True:
-                counter += 1
-                try:
-                    self.idempotent_next(counter)
-                    yield self.get()
-                except SkipRow:
-                    continue
-                except (StopProcessing, StopIteration):
-                    break
-    
-    def process_all(self, source, return_results=False, *args, **kwargs):
-        if return_results:
-            return list(self.process(source, *args, **kwargs))
-        else:
-            for _ in self.process(source, *args, **kwargs):
-                pass
+    def close(self):
+        for put in self._puts.values():
+            if put.is_open:
+                put.close()
+        for put in self._null_puts:
+            if put.is_open:
+                put.close()
+        super().close()

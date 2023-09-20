@@ -1,5 +1,5 @@
-class SkipRow(Exception):
+class SkipRowException(Exception):
     pass
 
-class StopProcessing(Exception):
+class StopProcessingException(Exception):
     pass

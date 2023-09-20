@@ -1,12 +1,13 @@
+from sqlalchemy import *
 from ...base import Source, PipelineItem
 from ...sink import Sink
 from ...transformers import Lookup
 from ...collect import CollectDict
-from typing import Union, Sequence
+from typing import Union, Sequence, Mapping
 from functools import lru_cache
-from sqlalchemy import *
+from enum import Enum, auto
 __all__ = (
-    'make_table', 'make_column', 'make_columns', 'make_value_func',
+    'make_table', 'make_column', 'make_columns', 'UpdateAction',
     'QuerySource', 'TableSource',
     'QuerySink', 'TableInsertSink', 'TableUpdateSink', 'TableSink', 
     'LookupQuery', 'LookupTable',
@@ -39,29 +40,39 @@ def make_column(table:table, column:Union[str,Column])->Column:
 def make_columns(table:table, columns:Union[str,Column,Sequence[Column],Sequence[str]])->Column:
     if isinstance(column, Sequence):
         return [make_column(table, c) for c in columns]
-    return [make_column(columns)]
+    return [make_column(table, columns)]
 
-def make_value_func(column:Column, value, action='COALESCE'):
-    if action == 'COALESCE':
-        return func.COALESCE(value, column)
-    elif action == 'OVERWRITE_NULLS':
-        return func.COALESCE(column, value)
-    elif action == 'ALWAYS_OVERWRITE':
-        return value
-    elif action == 'KEEP_EXISTING':
-        return column
-    elif action == 'APPEND':
-        return func.CONCAT(column, " ", value)
-    elif action == 'APPEND_LINE':
-        return func.CONCAT(column, "\n", value)
-    elif action == 'PREPEND':
-        return func.CONCAT(value, " ", column)
-    elif action == 'PREPEND_LINE':
-        return func.CONCAT(value, "\n", column)
-    elif action == 'ADD':
-        return column + value
-    else:
-        raise ValueError(f'Unknown function for update clause: {func}')
+
+class UpdateAction(Enum):
+    coalesce = 'COALESCE'
+    overwrite_nulls = 'OVERWRITE_NULLS'
+    always_overwrite = 'ALWAYS_OVERWRITE'
+    keep_existing = 'KEEP_EXISTING'
+    append = 'APPEND'
+    append_line = 'APPEND_LINE'
+    prepend = 'PREPEND'
+    prepend_line = 'PREPEND_LINE'
+    add = 'ADD'
+
+    def func(self, column:Column, value):
+        if self is UpdateAction.coalesce:
+            return func.COALESCE(value, column)
+        elif self is UpdateAction.overwrite_nulls:
+            return func.COALESCE(column, value)
+        elif self is UpdateAction.always_overwrite:
+            return value
+        elif self is UpdateAction.keep_existing:
+            return column
+        elif self is UpdateAction.append:
+            return func.CONCAT(column, " ", value)
+        elif self is UpdateAction.append_line:
+            return func.CONCAT(column, "\n", value)
+        elif self is UpdateAction.prepend:
+            return func.CONCAT(value, " ", column)
+        elif self is UpdateAction.prepend_line:
+            return func.CONCAT(value, "\n", column)
+        elif self is UpdateAction.add:
+            return column + value
 
 
 class QuerySource(Source):
@@ -132,6 +143,7 @@ class QuerySource(Source):
             return tuple([getattr(self._current_value, col.name) for col in self.id_col])
     
     def open(self):
+        super().open()
         self._next_page()
         self._current_index = -1
     
@@ -208,40 +220,44 @@ class QuerySink(Sink):
     """
     Sink to insert of update using the specified query.
     """
-    def __init__(self, engine:Engine, query:Union[str, Executable]):
+    def __init__(self, engine:Engine, query:Union[str, Executable], *, buffer_size:int = 100):
         """
         :param engine: An SQLAlchemy Engine object to connect to the database
         :param query: The query to use to insert or update data
+        :param buffer_size: The number of results to hold in memory before inserting into the database
         """
         super().__init__()
         self.engine = engine
         if isinstance(query, str):
             query = text(query)
         self.query = query
-    
+        self.buffer_size = buffer_size
+        self._buffer = []
 
-    def process(self, source, *, buffer_size:int = 100):
+    def flush(self):
         """
-        :param buffer_size: The number of results to hold in memory before inserting into the database
+        Flush the buffer to the database
         """
-        if buffer_size > 1:
-            buffer = []
-            for row in super().process(source):
-                buffer.append(row)
-                yield row
-                if len(buffer) >= buffer_size:
-                    with self.engine.begin() as conn:
-                        conn.execute(self.query, buffer)
-                    buffer = []
-            # Send any remaining buffer items
-            if buffer:
-                with self.engine.begin() as conn:
-                    conn.execute(self.query, buffer)
+        if not self._buffer:
+            return
+        with self.engine.begin() as conn:
+            conn.execute(self.query, self._buffer)
+        self._buffer = []
+    
+    def get(self):
+        row = super().get()
+        if self.buffer_size > 1:
+            self._buffer.append(row)
+            if len(self._buffer) >= self.buffer_size:
+                self.flush()
         else:
-            for row in super().process(source):
-                with self.engine.begin() as conn:
-                    conn.execute(self.query, row)
-                yield row
+            with self.engine.begin() as conn:
+                conn.execute(self.query, row)
+        return row
+    
+    def close(self):
+        self.flush()
+        super().close()
 
 
 class TableInsertSink(QuerySink):
@@ -263,14 +279,14 @@ class TableUpdateSink(QuerySink):
     has more database round-trips than `TableInsertSink`, but still fewer than `TableSink`.
     
     """
-    def __init__(self, engine:Engine, table:Union[Table,str], key_columns:Union[Column,str,Sequence[Column],Sequence[str]]=None, default_update_action="COALESCE", update_actions:dict={}):
+    def __init__(self, engine:Engine, table:Union[Table,str], key_columns:Union[Column,str,Sequence[Column],Sequence[str]]=None, default_update_action:UpdateAction=UpdateAction.coalesce, update_actions:Mapping[str,UpdateAction]={}):
         """
         :param engine: An SQLAlchemy Engine object to connect to the database
         :param table: The table or view to pull data from
         :param key_column: The column to use as a key in the update clause. Should be unique.
             If not provided, the primary key will be used.
         :param default_update_action: Default value to use when none is found in `update_actions`.
-        :param update_actions: Mapping of column names to actions; see `make_value_func`.
+        :param update_actions: Mapping of column names to actions
         """
         table = make_table(engine, table)
         if key_columns is not None:
@@ -290,10 +306,9 @@ class TableUpdateSink(QuerySink):
     def query(self):
         """Return the query, with the values bound. (Only the "raw" query is stored, initially)"""
         return self._query.values({
-            key:make_value_func(
+            key:UpdateAction(self.update_actions.get(key, self.default_update_action)).func(
                 make_column(self.table, key), 
                 bindparam(key),
-                self.update_actions.get(key, self.default_update_action)
             ) for key in self.keys()
         })
     
@@ -310,14 +325,14 @@ class TableSink(Sink):
 
     More efficient "upsert" sinks can also be found, but they are dialect-specific, e.g. `MySQLTableInsertSink`.
     """
-    def __init__(self, engine:Engine, table:Union[Table,str], key_columns:Union[Column,str,Sequence[Column],Sequence[str]]=None, *, update_actions:dict={}, default_update_action="COALESCE"):
+    def __init__(self, engine:Engine, table:Union[Table,str], key_columns:Union[Column,str,Sequence[Column],Sequence[str]]=None, *, do_updates=True, update_actions:Mapping[str,UpdateAction]={}, default_update_action:UpdateAction=UpdateAction.coalesce):
         """
         :param engine: An SQLAlchemy Engine object to connect to the database
         :param table: The table or view to pull data from
         :param key_column: The column to use as a key in the update clause. Should be unique.
             If not provided, the primary key will be used.
         :param default_update_action: Default value to use when none is found in `update_actions`.
-        :param update_actions: Mapping of column names to actions; see `make_value_func`.
+        :param update_actions: Mapping of column names to actions
         """
         super().__init__()
         self.engine = engine
@@ -330,6 +345,7 @@ class TableSink(Sink):
                 raise ValueError('Table has no primary key; you must specify key_column')
             key_cols = pk.columns
         self.match_condition = [column == bindparam(column.name) for column in key_cols]
+        self.do_updates = do_updates
         self.update_actions = update_actions
         self.default_update_action = default_update_action
 
@@ -344,25 +360,24 @@ class TableSink(Sink):
     @property
     def query_update(self):
         return update(self.table).where(*self.match_condition).values(
-            {key:make_value_func(
+            {key:UpdateAction(self.update_actions.get(key, self.default_update_action)).func(
                 make_column(key), 
                 bindparam(key), 
-                self.update_actions.get(key, self.default_update_action)
             ) for key in self.keys()}
         )
 
 
-    def process(self, source, *, do_updates=True):
+    def get(self):
+        row = super().get()
         with self.engine.begin() as conn:
-            for row in super().process(source):
-                selected = conn.execute(self.query_select, (row[self.key_column],)).scalar()
-                if selected and do_updates:
-                    # An existing value was found and we want to update it
-                    conn.execute(self.query_update, row)
-                elif not selected:
-                    # No existing value was found
-                    conn.execute(self.query_insert, row)
-                yield row
+            selected = conn.execute(self.query_select, (row[self.key_column],)).scalar()
+            if selected and self.do_updates:
+                # An existing value was found and we want to update it
+                conn.execute(self.query_update, row)
+            elif not selected:
+                # No existing value was found
+                conn.execute(self.query_insert, row)
+        return row
 
 
 class LookupQuery(Lookup):
