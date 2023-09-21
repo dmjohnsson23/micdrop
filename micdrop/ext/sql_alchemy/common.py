@@ -1,4 +1,6 @@
 from sqlalchemy import *
+
+from micdrop.pipeline.base import Source
 from ...pipeline import Source, PipelineItem,  Lookup, CollectDict
 from ...sink import Sink
 from typing import Union, Sequence, Mapping
@@ -343,13 +345,14 @@ class TableSink(Sink):
                 raise ValueError('Table has no primary key; you must specify key_column')
             key_cols = pk.columns
         self.match_condition = [column == bindparam(column.name) for column in key_cols]
+        self.key_columns = key_cols
         self.do_updates = do_updates
         self.update_actions = update_actions
         self.default_update_action = default_update_action
 
     @property
     def query_select(self):
-        return self.table.select(func.count("*")).where(*self.match_condition)
+        return select(func.count("*")).select_from(self.table).where(*self.match_condition)
     
     @property
     def query_insert(self):
@@ -359,7 +362,7 @@ class TableSink(Sink):
     def query_update(self):
         return update(self.table).where(*self.match_condition).values(
             {key:UpdateAction(self.update_actions.get(key, self.default_update_action)).func(
-                make_column(key), 
+                make_column(self.table, key), 
                 bindparam(key), 
             ) for key in self.keys()}
         )
@@ -368,7 +371,7 @@ class TableSink(Sink):
     def get(self):
         row = super().get()
         with self.engine.begin() as conn:
-            selected = conn.execute(self.query_select, (row[self.key_column],)).scalar()
+            selected = conn.execute(self.query_select, {col.name:row[col.name] for col in self.key_columns}).scalar()
             if selected and self.do_updates:
                 # An existing value was found and we want to update it
                 conn.execute(self.query_update, row)
@@ -428,7 +431,7 @@ class CollectQuery(CollectDict):
 
     Example::
 
-        with CollectQuery("SELECT * FROM the_table WHERE thing1 = :thing1 OR thing2 = :thing2") as query:
+        with CollectQuery(engine, "SELECT * FROM the_table WHERE thing1 = :thing1 OR thing2 = :thing2") as query:
             source.take('thing1') >> query.put('thing1')
             source.take('thing2') >> query.put('thing2')
             query.take(0).take('thing3') >> sink.put('thing3')
@@ -495,7 +498,7 @@ class CollectQueryValue(CollectQuery):
 
     Example::
 
-        with CollectQueryValue("SELECT thing3 FROM the_table WHERE thing1 = :thing1 OR thing2 = :thing2 LIMIT 1") as query:
+        with CollectQueryValue(engine, "SELECT thing3 FROM the_table WHERE thing1 = :thing1 OR thing2 = :thing2 LIMIT 1") as query:
             source.take('thing1') >> query.put('thing1')
             source.take('thing2') >> query.put('thing2')
             query >> sink.put('thing3')
@@ -517,7 +520,7 @@ class FetchValue(QueryValue):
         :param key_column: The column that will be the key of the lookup table (must be unique)
         :param value_column: The column that will be the value of the lookup table
         """
-        super().__init__(engine, select(make_column(table, value_column)).where(make_column(table, key_column) == bindparam('name')).limit(1))
+        super().__init__(engine, select(make_column(table, value_column)).where(make_column(table, key_column) == bindparam('value')).limit(1))
 
 
 class QueryRow(Query):
@@ -530,6 +533,9 @@ class QueryRow(Query):
         with self.engine.begin() as conn:
             result = conn.execute(self.query, {'value':value})
             return result.one_or_none()
+    
+    def take(self, key, safe=False) -> Source:
+        return super().take_attr(key, safe)
         
 
 class CollectQueryRow(CollectQuery):
@@ -538,13 +544,16 @@ class CollectQueryRow(CollectQuery):
 
     Example::
 
-        with CollectQueryRow("SELECT * FROM the_table WHERE thing1 = :thing1 OR thing2 = :thing2 LIMIT 1") as query:
+        with CollectQueryRow(engine, "SELECT * FROM the_table WHERE thing1 = :thing1 OR thing2 = :thing2 LIMIT 1") as query:
             source.take('thing1') >> query.put('thing1')
             source.take('thing2') >> query.put('thing2')
             query.take('thing3') >> sink.put('thing3')
     """
     def _process_result(self, result):
         self._value = result.one_or_none()
+    
+    def take(self, key, safe=False) -> Source:
+        return super().take_attr(key, safe)
 
 
 class FetchRow(QueryRow):
@@ -557,7 +566,7 @@ class FetchRow(QueryRow):
         :param table: The table or view to pull data from
         :param key_column: The column that will be the key of the lookup table (must be unique)
         """
-        super().__init__(engine, select().where(make_column(table, key_column) == bindparam('name')).limit(1))
+        super().__init__(engine, select(table).where(make_column(table, key_column) == bindparam('value')).limit(1))
 
 
 class QueryColumn(Query):
@@ -578,7 +587,7 @@ class CollectQueryColumn(CollectQuery):
 
     Example::
 
-        with CollectQueryColumn("SELECT thing3 FROM the_table WHERE thing1 = :thing1 OR thing2 = :thing2") as query:
+        with CollectQueryColumn(engine, "SELECT thing3 FROM the_table WHERE thing1 = :thing1 OR thing2 = :thing2") as query:
             source.take('thing1') >> query.put('thing1')
             source.take('thing2') >> query.put('thing2')
             query >> JoinDelimited(',') >> sink.put('thing3')
@@ -598,4 +607,4 @@ class FetchColumn(QueryColumn):
         :param key_column: The column that will be the key of the lookup table
         :param value_column: The column that will be the value of the lookup table
         """
-        super().__init__(engine, select(make_column(table, value_column)).where(make_column(table, key_column) == bindparam('name')))
+        super().__init__(engine, select(make_column(table, value_column)).where(make_column(table, key_column) == bindparam('value')))

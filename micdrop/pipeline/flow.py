@@ -1,11 +1,15 @@
 from __future__ import annotations
-from typing import Callable
+from typing import Callable, Union
 from .base import Put, PipelineItem, Source
+from .loose import IterableSource
+from .segment import PipelineSegment
 from .collect import CollectArgsKwargsTakeMixin
 from ..utils import DeferredOperand
 from ..exceptions import SkipRowException, StopProcessingException
+from ..process import process_all
+from ..sink import Sink
 __all__ = (
-    'Choose', 'Branch', 'Coalesce', 
+    'Choose', 'Branch', 'Coalesce', 'ForEach',
     'SkipRow', 'StopProcessing', 'StopIf', 'SkipIf', 
     'SentinelStop', 'SentinelSkip', 'SentinelStopUnless', 'SentinelSkipUnless', 
     'StopIfRepeat', 'SkipIfRepeat'
@@ -219,6 +223,22 @@ class BranchCase(CollectArgsKwargsTakeMixin, Source):
         super().close()
 
 
+class ForEach(PipelineItem):
+    """
+    Applies the contained pipeline to each element of the input. Expects to receive an iterable.
+    """
+    def __init__(self, pipeline:Union[PipelineItem,PipelineSegment]):
+        if not isinstance(pipeline, PipelineSegment):
+            pipeline = PipelineSegment() >> pipeline
+        self.pipeline = pipeline
+    
+    def process(self, value):
+        return process_all(
+            IterableSource(value) >> self.pipeline.apply() >> Sink(),
+            True
+        )
+
+
 class Coalesce(Source):
     """
     A collector pipeline that returns the first non-null value that is put.
@@ -297,7 +317,7 @@ class StopIf(PipelineItem):
         self.condition = condition
     
     def process(self, value):
-        if self.condition(self.value):
+        if self.condition(value):
             raise StopProcessingException()
         else:
             return value
@@ -311,7 +331,7 @@ class SkipIf(PipelineItem):
         self.condition = condition
     
     def process(self, value):
-        if self.condition(self.value):
+        if self.condition(value):
             raise SkipRowException()
         else:
             return value

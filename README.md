@@ -120,3 +120,4 @@ This library is designed for extensibility. Your can write your own sinks, sourc
     * Take using xpath
     * Allow multiple files or a singe file with multiple values (different source/sink classes probably)
 * Build stand-alone documentation
+* Async IO, to process multiple pipelines concurrently (Potential tool: https://github.com/bitcart/universalasync)

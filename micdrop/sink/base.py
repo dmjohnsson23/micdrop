@@ -37,6 +37,8 @@ class Sink(Put):
             put.idempotent_next(idempotency_counter)
         for put in self._null_puts:
             put.idempotent_next(idempotency_counter)
+        if self._prev is not None:
+            self._prev.idempotent_next(idempotency_counter)
     
     def keys(self):
         """
@@ -58,7 +60,7 @@ class Sink(Put):
             put.get()
         whole_put = self._prev.get() if self._prev is not None else None
         put_values = {key: put.get() for key, put in self._puts.items()}
-        if whole_put is None:
+        if self._prev is None:
             return put_values
         if not put_values:
             return whole_put

@@ -163,6 +163,21 @@ class TestPipeline(unittest.TestCase):
         self.assertEqual(sink1.get(), '5')
         self.assertEqual(sink2.get(), 15.0)
     
+    def test_foreach(self):
+        source = IterableSource([
+            {'a':'first', 'b':[1, 2, 3, 4, 5]},
+            {'a':'second', 'b':[0, 1, 2, 3]},
+            {'a':'third', 'b':[2, 3, 4, 5, 6, 7]},
+        ])
+        pipe = source.take('b') >> ForEach(PipelineSegment() >> (DeferredOperand() + ord('a')) >> chr >> str.upper) >> JoinDelimited('')
+        pipe.idempotent_next(0)
+        self.assertEqual(pipe.get(), 'BCDEF')
+        pipe.idempotent_next(1)
+        self.assertEqual(pipe.get(), 'ABCD')
+        pipe.idempotent_next(2)
+        self.assertEqual(pipe.get(), 'CDEFGH')
+
+    
     def test_skip_row(self):
         source = IterableSource(range(5))
         with source >> Choose() as choice:
@@ -243,7 +258,14 @@ class TestSourceSink(unittest.TestCase):
             {'id':1, 'race':'Human'},
             {'id':2, 'race':'Human'},
         ])
+    
+    def test_sink_whole_value(self):
+        source = IterableSource(self.test_data_1)
+        sink = Sink()
 
+        source >> sink
+
+        self.assertEqual(process_all(sink, True), self.test_data_1)
 
 
     def test_integration(self):

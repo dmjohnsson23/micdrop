@@ -165,7 +165,31 @@ class TestSqlAlchemy(unittest.TestCase):
             ])
     
     def test_table_sink(self):
-        pass # TODO
+        self.populate()
+        source = IterableSource([
+            {'id': 6, 'f_name':'Peter', 'l_name':'Parker', 'occupation':'Photographer', 'race':'Human'},
+            {'id': 7, 'f_name':'Kaladin', 'l_name':'Stormblessed', 'occupation':'Knight Radiant', 'race':'Human'},
+            {'id': 8, 'f_name':'Brandon', 'l_name':'Sanderson', 'occupation':'Author', 'race':'Human'},
+        ])
+        sink = TableSink(self.engine, self.people, self.people.c.id, default_update_action=UpdateAction.always_overwrite)
+        source.take('id') >> sink.put('id')
+        source.take('f_name') >> sink.put('f_name')
+        source.take('l_name') >> sink.put('l_name')
+        source.take('occupation') >> sink.put('occupation')
+        source.take('race') >> sink.put('race')
+        process_all(sink)
+        with self.engine.connect() as conn:
+            result = conn.execute(select(self.people.c.f_name, self.people.c.l_name, self.people.c.occupation, self.people.c.race))
+            self.assertEqual([r._mapping for r in result.all()], [
+                {'f_name':'Robert', 'l_name':'Jordan', 'occupation':'Author', 'race':'Human'},
+                {'f_name':'J.R.R.', 'l_name':'Tolkien', 'occupation':'Author', 'race':'Human'},
+                {'f_name':'Toby', 'l_name':'Mcguire', 'occupation':'Actor', 'race':'Human'},
+                {'f_name':'Bilbo', 'l_name':'Baggins', 'occupation':'Burglar', 'race':'Hobbit'},
+                {'f_name':'Perrin', 'l_name':'Aybara', 'occupation':'Blacksmith', 'race':'Human'},
+                {'f_name':'Peter', 'l_name':'Parker', 'occupation':'Photographer', 'race':'Human'},
+                {'f_name':'Kaladin', 'l_name':'Stormblessed', 'occupation':'Knight Radiant', 'race':'Human'},
+                {'f_name':'Brandon', 'l_name':'Sanderson', 'occupation':'Author', 'race':'Human'},
+            ])
 
     def test_lookup_query(self):
         pass # TODO
@@ -186,6 +210,26 @@ class TestSqlAlchemy(unittest.TestCase):
         ])
 
     # TODO test remaining classes
+
+    def test_collect_query(self):
+        pass
+
+    def test_fetch(self):
+        self.populate()
+        source = TableSource(self.engine, self.book_character)
+        sink = DictsSink()
+
+        source.take('book') >> FetchValue(self.engine, self.books, self.books.c.id, self.books.c.title) >> sink.put('book')
+        with source.take('character') >> FetchRow(self.engine, self.people, self.people.c.id) as character:
+            character.take('f_name') >> sink.put('f_name')
+            character.take('l_name') >> sink.put('l_name')
+
+        results = process_all(sink, True)
+        self.assertEqual(results, [
+            {'book':'The Eye of the World', 'f_name':'Perrin', 'l_name':'Aybara'},
+            {'book':'The Hobbit', 'f_name':'Bilbo', 'l_name':'Baggins'},
+            {'book':'The Lord of the Rings', 'f_name':'Bilbo', 'l_name':'Baggins'},
+        ])
 
     def test_multi(self):
         self.populate()

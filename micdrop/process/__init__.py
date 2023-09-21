@@ -13,9 +13,9 @@ def process(sink):
             except (StopProcessingException, StopIteration):
                 break
 
-def process_all(sink, return_results=False, *args, **kwargs):
+def process_all(sink, return_results=False):
     if return_results:
-        return list(process(sink, *args, **kwargs))
+        return list(process(sink))
     else:
-        for _ in process(sink, *args, **kwargs):
+        for _ in process(sink):
             pass

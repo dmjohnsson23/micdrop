@@ -1,6 +1,6 @@
 from sqlalchemy import *
 from sqlalchemy.dialects.mysql import insert
-from typing import Union
+from typing import Union, Mapping
 from .common import *
 
 __all__ = ('MySQLTableInsertSink',)
