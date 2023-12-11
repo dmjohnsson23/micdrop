@@ -1,24 +1,7 @@
-from .base import PipelineItem, Source, Put
-from ..exceptions import SkipRowException, StopProcessingException
+from .base import PipelineItem, Source, Put, OnFail
 from time import time_ns
 import os, shutil
-from enum import Enum
-__all__ = ('WriteFile', 'CopyFile', 'MoveFile', 'ReadFile', 'FileOnFail')
-
-class FileOnFail(Enum):
-    fail = 'fail'
-    stop = 'stop'
-    skip = 'skip'
-    ignore = 'ignore'
-
-    def __call__(self, exception:Exception):
-        if self is FileOnFail.skip:
-            raise SkipRowException()
-        if self is FileOnFail.stop:
-            raise StopProcessingException()
-        if self is FileOnFail.ignore:
-            return
-        raise exception
+__all__ = ('WriteFile', 'CopyFile', 'MoveFile', 'ReadFile')
 
 
 class WriteFile(PipelineItem):
@@ -28,10 +11,10 @@ class WriteFile(PipelineItem):
     You can optionally control the name using the `put_name` method or the `name_pipeline` parameter.
     (These are equivalent). Otherwise, uses `time_ns()` to name the file.
     """
-    def __init__(self, save_dir: str, is_binary=None, name_pipeline:Source = None, *, on_fail:FileOnFail = FileOnFail.fail):
+    def __init__(self, save_dir: str, is_binary=None, name_pipeline:Source = None, *, on_fail:OnFail = OnFail.fail):
         self.save_dir = save_dir
         self.is_binary = is_binary
-        self.on_fail = FileOnFail(on_fail)
+        self.on_fail = OnFail(on_fail)
         self._put_name = name_pipeline >> Put()
     
     def put_name(self):
@@ -59,10 +42,10 @@ class _FilePipelineItemBase2(PipelineItem):
     """
     Base class for 2-file operations (move, copy)
     """
-    def __init__(self, from_dir: str, to_dir: str, name_pipeline:Source = None, *, on_fail:FileOnFail = FileOnFail.fail):
+    def __init__(self, from_dir: str, to_dir: str, name_pipeline:Source = None, *, on_fail:OnFail = OnFail.fail):
         self.from_dir = from_dir
         self.to_dir = to_dir
-        self.on_fail = FileOnFail(on_fail)
+        self.on_fail = OnFail(on_fail)
         self._put_name = name_pipeline
     
     def put_name(self):
@@ -108,10 +91,10 @@ class ReadFile(PipelineItem):
     """
     Receives a filename as input and outputs the file contents.
     """
-    def __init__(self, base_dir, is_binary=True, *open_args, on_fail:FileOnFail = FileOnFail.fail, **open_kwargs):
+    def __init__(self, base_dir, is_binary=True, *open_args, on_fail:OnFail = OnFail.fail, **open_kwargs):
         self.base_dir = base_dir
         self.is_binary = is_binary
-        self.on_fail = FileOnFail(on_fail)
+        self.on_fail = OnFail(on_fail)
         self.open_args = open_args
         self.open_kwargs = open_kwargs
     

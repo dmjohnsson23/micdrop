@@ -7,7 +7,7 @@ __all__ = ('DictsSink', 'ObjectsSink', 'ObjectsSinkSetattr', 'NamedTuplesSink', 
 
 class DictsSink(Sink):
     """
-    A sink that will return the results as an iterable of python dicts.
+    A sink that will return the results as python dicts.
     
     Good for testing, or for converting between two internal representations of the same data.
     """
@@ -15,7 +15,7 @@ class DictsSink(Sink):
 
 class ObjectsSink(Sink):
     """
-    A sink that will return the results as an iterable of python objects.
+    A sink that will return the results as python objects.
     
     Good for testing, or for converting between two internal representations of the same data.
     """
@@ -36,7 +36,7 @@ class ObjectsSink(Sink):
 
 class ObjectsSinkSetattr(Sink):
     """
-    A sink that will return the results as an iterable of python objects.
+    A sink that will return the results as of python objects.
     
     Good for testing, or for converting between two internal representations of the same data.
     """
@@ -57,7 +57,7 @@ class ObjectsSinkSetattr(Sink):
 
 class NamedTuplesSink(Sink):
     """
-    A sink that will return the results as an iterable of namedtuple objects.
+    A sink that will return the results as namedtuple objects.
     
     Good for testing, or for converting between two internal representations of the same data.
     """
@@ -77,7 +77,8 @@ class CallSink(Sink):
     """
     def __init__(self, function:Callable):
         """
-        :param func: The function to which to pass all of the values each iteration
+        :param func: The function, class, or callable object to which to pass all of the values each
+            iteration. The result of the call will be returned from the sink.
         """
         super().__init__()
         self.function = function

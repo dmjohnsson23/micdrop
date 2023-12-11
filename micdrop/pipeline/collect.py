@@ -233,9 +233,15 @@ class CollectCall(CollectArgsKwargs):
     Keyword args are added with ``collect_call.put('arg_name')``, positional args are added with
     ``collect_call.put()``. You are free to mix-and-match the two.
 
-    Examples (using three different equivalent syntaxes)::
+    Examples (using four different equivalent syntaxes)::
 
         # Decorator syntax
+        @CollectCall.of(source.take('thing1'), source.take('thing2'))
+        def do_things(thing1, thing2):
+            return thing1 + thing2
+        do_things >> sink.put('things')
+
+        # Alternate decorator syntax
         @CollectCall
         def do_things(thing1, thing2):
             return thing1 + thing2
@@ -274,6 +280,20 @@ class CollectCall(CollectArgsKwargs):
     def next(self):
         super().next()
         self._value = None
+    
+    @classmethod
+    def of(cls, *args, **kwargs):
+        """
+        Special decorator syntax for the collect call::
+
+            @CollectCall.of(source.take('thing1'), source.take('thing2'))
+            def do_things(thing1, thing2):
+                return thing1 + thing2
+            do_things >> sink.put('things')
+        """
+        def wrapper(f):
+            return cls(f, *args, **kwargs)
+        return wrapper
 
 
 class CollectValueOther(Source):

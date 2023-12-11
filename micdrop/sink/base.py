@@ -4,7 +4,7 @@ __all__ = ('Sink',)
 
 class Sink(Put):
     """
-    The base Sink class. Does nothing with put values, other than output the collected dict via `process`.
+    The base Sink class. Does nothing with put values, other than output the collected dicts via `get`.
 
     Generally you won't use this directly, only as a base for implementing other sinks.
     """

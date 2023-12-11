@@ -1,6 +1,4 @@
 from sqlalchemy import *
-
-from micdrop.pipeline.base import Source
 from ...pipeline import Source, PipelineItem,  Lookup, CollectDict
 from ...sink import Sink
 from typing import Union, Sequence, Mapping
@@ -405,7 +403,8 @@ class LookupQuery(Lookup):
 class LookupTable(Lookup):
     """
     Pipeline item to look up a value in a table. This will fetch and store the entire lookup
-    table in memory, so should only be used for relatively small lookup tables.
+    table in memory, so should only be used for relatively small lookup tables. Use `FetchValue`
+    for larger lookups.
     """
     def __init__(self, engine:Engine, table:Union[Table,str], key_column:Union[Column,str], value_column:Union[Column,str], *, convert_keys=str):
         """
@@ -534,8 +533,11 @@ class QueryRow(Query):
             result = conn.execute(self.query, {'value':value})
             return result.one_or_none()
     
-    def take(self, key, safe=False) -> Source:
-        return super().take_attr(key, safe)
+    def take(self, key, safe=False):
+        if isinstance(key, int):
+            return super().take(key, safe)
+        else:
+            return self.take_attr(key, safe)
         
 
 class CollectQueryRow(CollectQuery):
@@ -552,8 +554,11 @@ class CollectQueryRow(CollectQuery):
     def _process_result(self, result):
         self._value = result.one_or_none()
     
-    def take(self, key, safe=False) -> Source:
-        return super().take_attr(key, safe)
+    def take(self, key, safe=False):
+        if isinstance(key, int):
+            return super().take(key, safe)
+        else:
+            return self.take_attr(key, safe)
 
 
 class FetchRow(QueryRow):

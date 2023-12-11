@@ -3,8 +3,8 @@ from typing import Callable, Union
 from .base import Put, PipelineItem, Source
 from .loose import IterableSource
 from .segment import PipelineSegment
-from .collect import CollectArgsKwargsTakeMixin
-from ..utils import DeferredOperand
+from .collect import CollectArgsKwargsTakeMixin, CollectArgsKwargs
+from ..utils import DeferredOperand, DeferredOperandConstructorValueMeta
 from ..exceptions import SkipRowException, StopProcessingException
 from ..process import process_all
 from ..sink import Sink
@@ -238,6 +238,47 @@ class ForEach(PipelineItem):
             True
         )
 
+class Flatten(PipelineItem):
+    """
+    Used to flatten a source where each row contains multiple "logical" rows for the sink
+
+    Example::
+        
+        with source.take('list_of_flags') >> SplitDelimited(',') >> Flatten(source.take('ref_id')) as row:
+            row.passthru.take() >> sink.put('ref_id')
+            row >> sink.put('flag')
+    """
+    def __init__(self, *positional_passthru, **named_passthru):
+        self.passthru = FlattenPassthru(*positional_passthru, **named_passthru)
+        self._current_collection = None
+        self._current_collection_iter = None
+
+    # Force use of original idempotent_next to avoid calling prev
+    idempotent_next = Source.idempotent_next
+
+    def process(self, value):
+        if value is not self._current_collection:
+            self._current_collection = value
+            self._current_collection_iter = iter(value)
+        counter = 0
+        while True:
+            try:
+                return next(self._current_collection_iter)
+            except StopIteration:
+                # Call the "real" idempotent_next to propagate backward and get the next iterable
+                token = (counter, self._reset_idempotency)
+                counter += 1
+                super().idempotent_next(token)
+                self.passthru.backpropagate_idempotent_next(token)
+
+class FlattenPassthru(CollectArgsKwargsTakeMixin, CollectArgsKwargs):
+    # Force use of original idempotent_next to avoid calling prev
+    idempotent_next = Source.idempotent_next
+    # The real backpropagating idempotatnt_next is a separate method controlled by Flatten
+    backpropagate_idempotent_next = CollectArgsKwargs.idempotent_next
+
+    def __getattr__(self, name):
+        return self.take(name)
 
 class Coalesce(Source):
     """
@@ -309,7 +350,7 @@ class StopProcessing(Source):
         raise StopProcessingException()
         
 
-class StopIf(PipelineItem):
+class StopIf(PipelineItem, metaclass=DeferredOperandConstructorValueMeta):
     """
     If the input value matches the condition, then stop processing. Otherwise, forward the value unchanged.
     """
@@ -323,7 +364,7 @@ class StopIf(PipelineItem):
             return value
 
 
-class SkipIf(PipelineItem):
+class SkipIf(PipelineItem, metaclass=DeferredOperandConstructorValueMeta):
     """
     If the input value matches the condition, then skip the entire row. Otherwise, forward the value unchanged.
     """
@@ -335,6 +376,20 @@ class SkipIf(PipelineItem):
             raise SkipRowException()
         else:
             return value
+        
+
+class OnlyIf(PipelineItem, metaclass=DeferredOperandConstructorValueMeta):
+    """
+    If the input value matches the condition, then nothing happens. Otherwise, passes 'None'
+    """
+    def __init__(self, condition):
+        self.condition = condition
+    
+    def process(self, value):
+        if self.condition(value):
+            return value
+        else:
+            return None
 
 
 class SentinelStop(StopIf):

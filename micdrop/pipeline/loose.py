@@ -63,6 +63,10 @@ class IterableSource(Source):
     _value = None
     
     def __init__(self, iterable) -> None:
+        try:
+            self._progress_total = len(iterable)
+        except:
+            pass
         self._iterable = iter(iterable)
 
     def get(self):
@@ -90,6 +94,7 @@ class DictSource(Source):
     _value = None
     
     def __init__(self, dictionary:dict) -> None:
+        self._progress_total = len(dictionary)
         self._iterable = iter(dictionary.items())
 
     def get_index(self):

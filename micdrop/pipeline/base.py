@@ -1,7 +1,25 @@
 from __future__ import annotations
-__all__ = ('PipelineItemBase', 'PipelineItem', 'Source', 'Put', 'Take', 'TakeAttr', 'TakeIndex', 'ContinuedPut', 'Call', 'Invoke', 'InvokeMethod')
+__all__ = ('OnFail', 'PipelineItemBase', 'PipelineItem', 'Source', 'Put', 'Take', 'TakeAttr', 'TakeIndex', 'ContinuedPut', 'Call', 'Invoke', 'InvokeMethod')
 from typing import Callable
 from contextlib import contextmanager
+from enum import Enum
+from ..exceptions import SkipRowException, StopProcessingException
+
+
+class OnFail(Enum):
+    fail = 'fail'
+    stop = 'stop'
+    skip = 'skip'
+    ignore = 'ignore'
+
+    def __call__(self, exception:Exception):
+        if self is OnFail.skip:
+            raise SkipRowException()
+        if self is OnFail.stop:
+            raise StopProcessingException()
+        if self is OnFail.ignore:
+            return
+        raise exception
 
 class PipelineItemBase:
     _is_open = False
@@ -9,9 +27,9 @@ class PipelineItemBase:
 
     def next(self):
         """
-        Advance to the next item in the pipeline. May raise `micdrop.exceptions.StopProcessingException` or
-        `micdrop.exceptions.StopIteration` if the source is exhausted, or may allow `get` 
-        to do so instead.
+        Advance to the next item in the pipeline. May raise `micdrop.exceptions.StopProcessingException`
+        or `micdrop.exceptions.StopIteration` if the source is exhausted, or may allow `get` to do so 
+        instead.
         """
         pass
     
@@ -26,6 +44,16 @@ class PipelineItemBase:
             return
         self.next()
         self._reset_idempotency = idempotency_counter
+
+    def check_progress(self):
+        """
+        Get a tuple of two numbers indicating the current progress. The first number is the number
+        of completed items, and the second is the total items.
+
+        Either number may be None if the source does not support counting progress, if processing
+        hasn't started, or if the source contains an indeterminate number of items.
+        """
+        return (None, None)
     
     def get(self):
         """
@@ -87,6 +115,8 @@ class Source(PipelineItemBase):
     """
     Generic base class for sources. Not used directly; you must subclass to use this.
     """
+    _progress_total = None
+    _progress_completed = None
     def keys(self):
         """
         Get a list of all keys that can be taken with `take`.
@@ -108,6 +138,15 @@ class Source(PipelineItemBase):
         """
         return None
 
+    def check_progress(self):
+        return self._progress_completed, self._progress_total
+
+    def next(self):
+        if self._progress_completed is None:
+            # FIXME this should never be needed as it should be done by open()
+            self._progress_completed = 0
+        self._progress_completed += 1
+
     def __rshift__(self, next):
         next = Put.create(next)
         next._prev = self
@@ -121,21 +160,21 @@ class Source(PipelineItemBase):
         func._prev = self
         return func
 
-    def take(self, key, safe=False) -> Source:
+    def take(self, key, on_not_found=OnFail.fail) -> Source:
         """
         Take a sub-value from the pipeline; used to split fields or destructure data.
 
         Shorthand for ``source >> Take('key')``
         """
-        return self >> Take(key, safe)
+        return self >> Take(key, on_not_found)
     
-    def take_attr(self, key, safe=False) -> Source:
+    def take_attr(self, key, on_not_found=OnFail.fail) -> Source:
         """
         Take a sub-value from the pipeline; used to split fields or destructure data.
 
         Shorthand for ``source >> TakeAttr('key')``
         """
-        return self >> TakeAttr(key, safe)
+        return self >> TakeAttr(key, on_not_found)
     
     def take_index(self) -> Source:
         """
@@ -146,6 +185,10 @@ class Source(PipelineItemBase):
         Will forward a value of `None` for reports that are not indexed.
         """
         return self >> TakeIndex()
+    
+    def open(self):
+        super().open()
+        self._progress_completed = 0
     
     def __enter__(self):
         return self
@@ -176,6 +219,10 @@ class Put(PipelineItemBase):
     def idempotent_next(self, idempotency_counter):
         self._prev.idempotent_next(idempotency_counter)
         super().idempotent_next(idempotency_counter)
+
+    def check_progress(self):
+        if self._prev is not None:
+            return self._prev.check_progress()
 
     @property
     def then(self) -> ContinuedPut:
@@ -295,9 +342,9 @@ class Take(PipelineItem):
     """
     key = None
 
-    def __init__(self, key, safe=False):
+    def __init__(self, key, on_not_found=False):
         self.key = key
-        self.safe = safe
+        self.on_not_found = on_not_found
     
     def get(self):
         value = self._prev.get()
@@ -305,9 +352,8 @@ class Take(PipelineItem):
             return None
         try:
             return value[self.key]
-        except KeyError:
-            if not self.safe:
-                raise
+        except KeyError as e:
+            self.on_not_found(e)
 
 
 class TakeAttr(Take):
@@ -325,9 +371,8 @@ class TakeAttr(Take):
             return None
         try:
             return getattr(value, self.key)
-        except AttributeError:
-            if not self.safe:
-                raise
+        except AttributeError as e:
+            self.on_not_found(e)
 
 
 class TakeIndex(PipelineItem):
