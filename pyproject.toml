@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "micdrop"
-version = "0.2.1"
+version = "0.2.3"
 description = "Library with declaritive interface to aid in building tools for migrating, mapping, importing, converting, and transforming data."
 authors = ["Dominick Johnson <dominick.johnson@tylertech.com>"]
 readme = "README.md"

@@ -1,27 +1,13 @@
 from __future__ import annotations
 from .base import PipelineItem, Put, Source, Call
-__all__ = ('ProxySource', 'PipelineSegment', 'AppliedPipelineSegment')
-
-class ProxySource(Source):
-    """
-    A "pseudo" source that is intended to be puppeteered by another object
-    """
-    _value = None
-
-    def get(self):
-        return self._value
-    
-    def next(self):
-        self._value = None
-    
-    def set(self, value):
-        self._value = value
+from .loose import PuppetSource
+__all__ = ('PipelineSegment', 'AppliedPipelineSegment')
 
 class PipelineSegment:
     """
     A reusable piece of a pipeline
     """
-    _inlet_proxy = ProxySource = None
+    _inlet_proxy = PuppetSource = None
     _inlet: Source = None
     _outlet: Put = None
     _apply_counter: int = 0
@@ -65,7 +51,7 @@ class PipelineSegment:
         This should rarely be used under normal circumstances, but may be necessary for more complex branching pipelines.
         """
         inlet = Source.create(inlet)
-        proxy = ProxySource()
+        proxy = PuppetSource()
         proxy >> inlet
         self._inlet = inlet
         self._inlet_proxy = proxy

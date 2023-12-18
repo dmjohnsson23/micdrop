@@ -7,3 +7,5 @@ from .transformers import *
 from .debug import *
 from .segment import *
 from .files import *
+from .merge import *
+from .filter import *

@@ -9,8 +9,8 @@ from ..exceptions import SkipRowException, StopProcessingException
 from ..process import process_all
 from ..sink import Sink
 __all__ = (
-    'Choose', 'Branch', 'Coalesce', 'ForEach',
-    'SkipRow', 'StopProcessing', 'StopIf', 'SkipIf', 
+    'Choose', 'Branch', 'Coalesce', 'ForEach', 'Flatten',
+    'SkipRow', 'StopProcessing', 'StopIf', 'SkipIf', 'OnlyIf',
     'SentinelStop', 'SentinelSkip', 'SentinelStopUnless', 'SentinelSkipUnless', 
     'StopIfRepeat', 'SkipIfRepeat'
 )
@@ -27,9 +27,24 @@ class Choose(PipelineItem):
             source.take('col3') >> choice.fallback() # else (e.g. conditional < 6)
             choice >> sink.put('chosen') 
             # chosen will have the value of either col1, col2, or col3 depending on the value of conditional
+        
+        # Alternate syntax
+        source.take('conditional') >> Choose(
+            (source.take('col1'), lambda val: val == 6),
+            (source.take('col2'), lambda val: val > 6),
+            (source.take('col3'), None),
+        ) >> sink.put('chosen') 
     """
-    def __init__(self):
+    def __init__(self, *branches):
+        """
+        :param branches: Tuples consisting of an unterminated pipeline and a condition function.
+        """
         self._branches = []
+        for pipeline, condition in branches:
+            if condition:
+                pipeline >> self.check(condition)
+            else:
+                pipeline >> self.fallback()
     
     def process(self, value):
         for condition, put in self._branches:
@@ -240,36 +255,67 @@ class ForEach(PipelineItem):
 
 class Flatten(PipelineItem):
     """
-    Used to flatten a source where each row contains multiple "logical" rows for the sink
+    Used to flatten a source where each row contains multiple "logical" rows for the sink.
 
     Example::
         
         with source.take('list_of_flags') >> SplitDelimited(',') >> Flatten(source.take('ref_id')) as row:
             row.passthru.take() >> sink.put('ref_id')
             row >> sink.put('flag')
+    
+    ..warning:
+
+        When you use Flatten, you must pass *all* pipelines through the flattener. This is necessary 
+        to enforce proper iteration. If there are top-level values you need to pass through for 
+        every item in the flattened iteration, use the `passthru` functionality as demonstrated 
+        above. Any values passed to the Flatten constructor (named or positional) can be taken from
+        the passthru object.
+
+        You will get unexpected results if you use Flatten, but also put values directly from the main 
+        source into the sink!
+
+        Bad::
+
+            source.take('id') >> sink.put('id')
+            with source.take('items') >> Flatten() as flat:
+                flat >> sink.put('item')
+
+        Good::
+            
+            with source.take('items') >> Flatten(id = source.take('id')) as flat:
+                flat.passthru.take('id') >> sink.put('id')
+                flat >> sink.put('item')
     """
     def __init__(self, *positional_passthru, **named_passthru):
         self.passthru = FlattenPassthru(*positional_passthru, **named_passthru)
         self._current_collection = None
         self._current_collection_iter = None
 
-    # Force use of original idempotent_next to avoid calling prev
-    idempotent_next = Source.idempotent_next
+    def idempotent_next(self, token):
+        if self._current_collection is None:
+            # need to actually backpropagate the next call
+            super().idempotent_next(token)
+            self.passthru.backpropagate_idempotent_next(token)
+        else:
+            # Force use of `Source.idempotent_next` to avoid calling `prev.idempotent_next`
+            # That way we can stay on the current "upstream" iterable and just get the next value
+            Source.idempotent_next(self, token)
 
     def process(self, value):
         if value is not self._current_collection:
+            if value is None:
+                self._current_collection = None # Trigger backpropagation on next round
+                raise SkipRowException() # Skip this round
+            # start iterating next iterable
             self._current_collection = value
             self._current_collection_iter = iter(value)
-        counter = 0
-        while True:
-            try:
-                return next(self._current_collection_iter)
-            except StopIteration:
-                # Call the "real" idempotent_next to propagate backward and get the next iterable
-                token = (counter, self._reset_idempotency)
-                counter += 1
-                super().idempotent_next(token)
-                self.passthru.backpropagate_idempotent_next(token)
+        try:
+            # Get the next value of the current iterable
+            return next(self._current_collection_iter)
+        except StopIteration:
+            self._current_collection = None # Trigger backpropagation on next round
+            raise SkipRowException() # Skip this round
+
 
 class FlattenPassthru(CollectArgsKwargsTakeMixin, CollectArgsKwargs):
     # Force use of original idempotent_next to avoid calling prev

@@ -354,6 +354,8 @@ class Take(PipelineItem):
             return value[self.key]
         except KeyError as e:
             self.on_not_found(e)
+        except IndexError as e:
+            self.on_not_found(e)
 
 
 class TakeAttr(Take):

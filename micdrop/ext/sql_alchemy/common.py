@@ -33,12 +33,12 @@ def make_table(engine:Engine, table:Union[Table,str], *, db_name=None)->Table:
 def make_column(table:table, column:Union[str,Column])->Column:
     if isinstance(column, Column):
         return column
-    return table.columns[column]
+    return make_table(table).columns[column]
 
 def make_columns(table:table, columns:Union[str,Column,Sequence[Column],Sequence[str]])->Column:
     if isinstance(column, Sequence):
         return [make_column(table, c) for c in columns]
-    return [make_column(table, columns)]
+    return [make_column(make_table(table), columns)]
 
 
 class UpdateAction(Enum):

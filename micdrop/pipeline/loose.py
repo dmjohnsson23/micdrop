@@ -1,7 +1,7 @@
 """
 A collection of pipeline items that are "loose ends", e.g. either do not pull from a source or output to a sink
 """
-__all__ = ('FactorySource', 'StaticSource', 'IterableSource')
+__all__ = ('FactorySource', 'StaticSource', 'PuppetSource', 'IterableSource')
 
 from .base import Source
 
@@ -50,6 +50,36 @@ class StaticSource(Source):
 
     def get(self):
         return self._value
+    
+
+class PuppetSource(Source):
+    """
+    A source that supplies a programmatically controllable value. It operates similar to 
+    `StaticSource`, except that the supplied value can be changed at runtime.
+
+    Example::
+
+        p = PuppetSource() 
+        p >> sink.put('type')
+        # later, while the pipeline is running:
+        p.set('Value')
+    
+    This is probably not useful when used directly, but can be useful in implementing new pipeline 
+    item types with complex logic.
+    """
+    def __init__(self, initial_value=None, clear_on_next=True) -> None:
+        self.value = initial_value
+        self.clear_on_next = clear_on_next
+
+    def get(self):
+        return self.value
+
+    def set(self, value):
+        self.value = value
+    
+    def next(self):
+        if self.clear_on_next:
+            self.value = None
     
 
 class IterableSource(Source):
