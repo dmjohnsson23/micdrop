@@ -117,6 +117,7 @@ class QuerySource(Source):
 
     def next(self):
         try:
+            # FIXME fails on an empty result set because self._iter is None, despite changes to _next_page?
             self._current_value = next(self._iter)
             self._current_index += 1
         except StopIteration:
@@ -155,7 +156,8 @@ class QuerySource(Source):
                 self._current_page_offset += self.page_size
                 self._iter = iter(result)
                 return True
-            return False
+        self._iter = iter(()) # So next fails with StopIteration instead of TypeError
+        return False
     
     def take(self, key, safe=False):
         if isinstance(key, int):
@@ -197,7 +199,7 @@ class TableSource(QuerySource):
         super().__init__(engine, query, id_col=id_col, page_size=page_size)
     
     def keys(self):
-        self.table.c.keys()
+        return self.table.c.keys()
 
     def _next_page(self):
         with self.engine.begin() as conn:

@@ -31,10 +31,10 @@ class MySQLTableInsertSink(QuerySink):
             {key:bindparam(key) for key in self.keys()}
         )
         if self.on_duplicate_key_update:
-            return self._query.values({
+            return query.on_duplicate_key_update({
                 key:UpdateAction(self.update_actions.get(key, self.default_update_action)).func(
                     make_column(self.table, key), 
-                    bindparam(key),
+                    query.inserted[key],
                 ) for key in self.keys()
             })
         else:

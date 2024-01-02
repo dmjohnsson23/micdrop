@@ -68,14 +68,14 @@ class OnConflict:
         """
         Return the lowest value that is not None
         """
-        return min([v for v in values if v is not None])
+        return min([v for v in values if v is not None] or [None,])
     
     @staticmethod
     def greatest_not_none(values:Sequence):
         """
         Return the lowest value that is not None
         """
-        return min([v for v in values if v is not None])
+        return max([v for v in values if v is not None] or [None,])
     
     @staticmethod
     def sum(values:Sequence):
@@ -194,7 +194,10 @@ class MergeDicts(Source):
         self.sort_reversed = sort_reversed
         self.default_conflict_resolver = default_conflict_resolver
         self.conflict_resolvers = conflict_resolvers
-        self.keys = keys
+        self._keys = keys
+    
+    def keys(self):
+        return self._keys
     
     def get(self):
         if self._merged is None:
@@ -202,8 +205,8 @@ class MergeDicts(Source):
             dicts = [put.get() for put in self._puts]
             if self.sort_key is not None:
                 dicts = list(sorted(dicts, key=self.sort_key, reverse=self.sort_reversed))
-            if self.keys is not None:
-                keys = self.keys
+            if self._keys is not None:
+                keys = self._keys
             else:
                 keys = set()
                 for d in dicts:
@@ -211,7 +214,7 @@ class MergeDicts(Source):
             for key in keys:
                 values = []
                 for d in dicts:
-                    if key in d:
+                    if d is not None and key in d:
                         values.append(d[key])
                 if len(values) == 1:
                     self._merged[key] = values[0]
