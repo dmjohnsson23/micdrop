@@ -202,7 +202,7 @@ class MergeDicts(Source):
     def get(self):
         if self._merged is None:
             self._merged = {}
-            dicts = [put.get() for put in self._puts]
+            dicts = [put.guarded_get() for put in self._puts]
             if self.sort_key is not None:
                 dicts = list(sorted(dicts, key=self.sort_key, reverse=self.sort_reversed))
             if self._keys is not None:

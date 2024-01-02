@@ -49,7 +49,7 @@ class Choose(PipelineItem):
     def process(self, value):
         for condition, put in self._branches:
             if condition(value):
-                return put.get()
+                return put.guarded_get()
         return None
     
     def idempotent_next(self, idempotency_counter):
@@ -143,8 +143,8 @@ class Branch(Put):
             self._cached = True
         if case is self._current_case:
             return (
-                [put.get() for put in self._args],
-                {key: put.get() for key, put in self._kwargs.items()}
+                [put.guarded_get() for put in self._args],
+                {key: put.guarded_get() for key, put in self._kwargs.items()}
             )
         else:
             return (
@@ -338,7 +338,7 @@ class Coalesce(Source):
     def get(self):
         if not self._cached:
             for put in self._puts:
-                value = put.get()
+                value = put.guarded_get()
                 if value is not None:
                     self._value = value
                     self._cached = True

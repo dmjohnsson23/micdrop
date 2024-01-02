@@ -29,7 +29,7 @@ class CollectDict(Source):
     
     def get(self):
         if self._dict is None:
-            self._dict = {key: put.get() for key, put in self._puts.items()}
+            self._dict = {key: put.guarded_get() for key, put in self._puts.items()}
         return self._dict
     
     def next(self):
@@ -85,7 +85,7 @@ class CollectList(Source):
     
     def get(self):
         if self._list is None:
-            self._list = [put.get() for put in self._puts]
+            self._list = [put.guarded_get() for put in self._puts]
         return self._list
     
     def next(self):
@@ -124,8 +124,8 @@ class CollectArgsKwargs(Source):
     
     def get(self):
         return (
-            [put.get() for put in self._args],
-            {key: put.get() for key, put in self._kwargs.items()}
+            [put.guarded_get() for put in self._args],
+            {key: put.guarded_get() for key, put in self._kwargs.items()}
         )
     
     def put(self, key=None):
@@ -183,7 +183,7 @@ class TakeArgsKwargs(PipelineItem):
         self._key = key
     
     def get(self):
-        args, kwargs = self._prev.get()
+        args, kwargs = self._prev.guarded_get()
         if isinstance(self._key, int):
             return args[self._key]
         else:
@@ -324,9 +324,9 @@ class CollectValueOther(Source):
     def get(self):
         if not self._cached:
             p_mapped, p_unmapped, p_other = self._puts
-            mapped = p_mapped.get()
-            unmapped = p_unmapped.get()
-            other = p_other.get()
+            mapped = p_mapped.guarded_get()
+            unmapped = p_unmapped.guarded_get()
+            other = p_other.guarded_get()
             self._value = mapped
             if mapped is None and other is None:
                 self._other = unmapped

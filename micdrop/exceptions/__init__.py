@@ -3,3 +3,6 @@ class SkipRowException(Exception):
 
 class StopProcessingException(Exception):
     pass
+
+class PipelineProcessingError(Exception):
+    pass

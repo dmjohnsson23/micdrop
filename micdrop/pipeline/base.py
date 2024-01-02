@@ -3,7 +3,7 @@ __all__ = ('OnFail', 'PipelineItemBase', 'PipelineItem', 'Source', 'Put', 'Take'
 from typing import Callable
 from contextlib import contextmanager
 from enum import Enum
-from ..exceptions import SkipRowException, StopProcessingException
+from ..exceptions import SkipRowException, StopProcessingException, PipelineProcessingError
 
 
 class OnFail(Enum):
@@ -62,6 +62,27 @@ class PipelineItemBase:
         """
         raise NotImplementedError('`get` must be overridden')
 
+    def guarded_get(self):
+        """
+        Wrapper around the `get` method that will watch for any unexpected errors and wrap them appropriately.
+        """
+        try:
+            return self.get()
+        # Allow certain exception types to propagate
+        except StopIteration:
+            raise
+        except SkipRowException:
+            raise
+        except StopProcessingException:
+            raise
+        except KeyboardInterrupt:
+            raise
+        except PipelineProcessingError:
+            raise
+        # Catch all others
+        except Exception as e:
+            raise PipelineProcessingError(f"Error in pipeline {self.repr_for_pipeline_error()}: {e}") from e
+
     def open(self):
         self._is_open = True
 
@@ -109,6 +130,16 @@ class PipelineItemBase:
         self.open()
         yield self
         self.close()
+    
+    def chain_repr(self):
+        """
+        `repr` variant that also displays the repr of previous values in the chain.
+        """
+        return self.__repr__()
+    
+    def repr_for_pipeline_error(self):
+        """Internal function used for building error messages when handing exceptions"""
+        return f"`{self.chain_repr()}`"
 
 
 class Source(PipelineItemBase):
@@ -210,7 +241,7 @@ class Put(PipelineItemBase):
     _prev: Source = None
 
     def get(self):
-        return self._prev.get()
+        return self._prev.guarded_get()
 
     def __lshift__(self, prev):
         self._prev = Source.create(prev)
@@ -259,6 +290,25 @@ class Put(PipelineItemBase):
             return item.to_pipeline_put()
         else:
             return PipelineItem.create(item)
+    
+    def __repr__(self):
+        return f"{self.__class__.__name__}()"
+    
+    def chain_repr(self):
+        if self._prev is not None:
+            return f"{self._prev.chain_repr()} >> {self.__repr__()}"
+        else:
+            return self.__repr__()
+    
+    def repr_for_pipeline_error(self):
+        if self._prev is not None:
+            # prev.get has already been called once this iteration before if we reach this point, 
+            # so this should be safe, but just in case...
+            try:
+                return f"`{self.chain_repr()}` with value `{repr(self._prev.get())}`"
+            except Exception:
+                pass # We are already handling an exception right now, and don't need another one...
+        return super().repr_for_pipeline_error()
 
 class PipelineItem(Put, Source):
     _value = None
@@ -266,7 +316,7 @@ class PipelineItem(Put, Source):
 
     def get(self):
         if not self._is_cached:
-            self._value = self.process(self._prev.get())
+            self._value = self.process(self._prev.guarded_get())
             self._is_cached = True
         return self._value
 
@@ -328,7 +378,7 @@ class ContinuedPut(PipelineItem):
         self >> put
     
     def get(self):
-        return self._prev.get()
+        return self._prev.guarded_get()
 
 
 class Take(PipelineItem):
@@ -347,7 +397,7 @@ class Take(PipelineItem):
         self.on_not_found = on_not_found
     
     def get(self):
-        value = self._prev.get()
+        value = self._prev.guarded_get()
         if value is None:
             return None
         try:
@@ -356,6 +406,9 @@ class Take(PipelineItem):
             self.on_not_found(e)
         except IndexError as e:
             self.on_not_found(e)
+    
+    def __repr__(self):
+        return f"{self.__class__.__name__}({repr(self.key)})"
 
 
 class TakeAttr(Take):
@@ -368,13 +421,16 @@ class TakeAttr(Take):
     """
     
     def get(self):
-        value = self._prev.get()
+        value = self._prev.guarded_get()
         if value is None:
             return None
         try:
             return getattr(value, self.key)
         except AttributeError as e:
             self.on_not_found(e)
+    
+    def __repr__(self):
+        return f"{self.__class__.__name__}({repr(self.key)})"
 
 
 class TakeIndex(PipelineItem):
@@ -401,6 +457,9 @@ class Call(PipelineItem):
     
     def process(self, value):
         return self.function(value, *self.additional_args, **self.additional_kwargs)
+    
+    def __repr__(self):
+        return f"{self.__class__.__name__}({repr(self.function)})"
     
 
 class Invoke(PipelineItem):
@@ -429,3 +488,6 @@ class InvokeMethod(PipelineItem):
             return None
         function = getattr(value, self.method_name)
         return function(*self.args, **self.kwargs)
+    
+    def __repr__(self):
+        return f"{self.__class__.__name__}({repr(self.method_name)})"

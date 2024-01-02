@@ -12,6 +12,6 @@ class InspectPrint(PipelineItem):
         return self._prev.keys()
 
     def get(self):
-        value = self._prev.get()
+        value = self._prev.guarded_get()
         print(*self._print_args, value, **self._print_kwargs)
         return value

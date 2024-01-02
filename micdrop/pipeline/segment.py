@@ -100,7 +100,7 @@ class AppliedPipelineSegment(PipelineItem):
         # we run `next` here to insure that the segment can be used multiple times in the same pipeline
         self._segment._outlet.idempotent_next((self._applied_id, self._reset_idempotency))
         self._segment._inlet_proxy.set(value)
-        return self._segment._outlet.get()
+        return self._segment._outlet.guarded_get()
 
     def open(self):
         if not self._segment._outlet.is_open:

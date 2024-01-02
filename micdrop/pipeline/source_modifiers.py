@@ -20,7 +20,7 @@ class FilteredSource(Source):
         while True:
             try:
                 self.source.idempotent_next((counter, idempotency_counter))
-                if self.condition(self.source.get()):
+                if self.condition(self.source.guarded_get()):
                     return
             except SkipRowException:
                 continue

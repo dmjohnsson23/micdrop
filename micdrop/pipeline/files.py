@@ -28,7 +28,7 @@ class WriteFile(PipelineItem):
         if self._put_name is None:
             name = f"{time_ns()}.{'bin' if is_binary else 'txt'}"
         else:
-            name = self._put_name.get()
+            name = self._put_name.guarded_get()
         name = os.path.join(self.save_dir, name)
         try:
             with open(name, 'wb' if is_binary else 'w') as file:
@@ -61,7 +61,7 @@ class CopyFile(_FilePipelineItemBase2):
         if self._put_name is None:
             name = os.path.basename(value)
         else:
-            name = self._put_name.get()
+            name = self._put_name.guarded_get()
         name = os.path.join(self.to_dir, name)
         try:
             shutil.copy2(os.path.join(self.from_dir, value), name)
@@ -78,7 +78,7 @@ class MoveFile(_FilePipelineItemBase2):
         if self._put_name is None:
             name = os.path.basename(value)
         else:
-            name = self._put_name.get()
+            name = self._put_name.guarded_get()
         name = os.path.join(self.to_dir, name)
         try:
             shutil.move(os.path.join(self.from_dir, value), name)

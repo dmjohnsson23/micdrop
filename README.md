@@ -108,12 +108,14 @@ Alternatively, you can use `IterableSource` to use a generator as an arbitrary s
 ## TODOs
 
 * Graceful error recovery (e.g., if a migration is running and an unexpected error occurs, there should be a way to retry or skip)
+* Better error messages (Currently, if an error occurs, it occurs during the `process()` function and doesn't specify what pipeline caused the error, making it difficult to debug migration scripts)
+* Improve test coverage
 * Pipelines should function as reusable segments without needing the `PipelineSegment` class
     * Have do find a way to do this without breaking the cache/next mechanism, which I don't think we can do without
     * Maybe just always implicitly use `PipelineSegment`? (Would probably work, though the idempotency tokens could turn into quite the nasty mess of nested tuples)
 * Allow indexes to be put for Sinks
 * XML extension using ElementTree
     * Take using xpath
-    * Allow multiple files or a singe file with multiple values (different source/sink classes probably)
+    * Allow multiple files or a single file with multiple values (different source/sink classes probably)
 * Build stand-alone documentation
 * Async IO, to process multiple pipelines concurrently (Potential tool: https://github.com/bitcart/universalasync)

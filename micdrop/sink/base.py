@@ -57,9 +57,9 @@ class Sink(Put):
         Get the current processed row value
         """
         for put in self._null_puts:
-            put.get()
-        whole_put = self._prev.get() if self._prev is not None else None
-        put_values = {key: put.get() for key, put in self._puts.items()}
+            put.guarded_get()
+        whole_put = self._prev.guarded_get() if self._prev is not None else None
+        put_values = {key: put.guarded_get() for key, put in self._puts.items()}
         if self._prev is None:
             return put_values
         if not put_values:

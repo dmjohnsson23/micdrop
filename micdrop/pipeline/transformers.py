@@ -188,7 +188,7 @@ class Default(PipelineItem):
     def process(self, value):
         if value is None:
             if isinstance(self.value, Source):
-                return self.value.get()
+                return self.value.guarded_get()
             return self.value
         else:
             return value
