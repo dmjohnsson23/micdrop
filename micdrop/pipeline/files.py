@@ -51,6 +51,11 @@ class _FilePipelineItemBase2(PipelineItem):
     def put_name(self):
         self._put_name = Put()
         return self._put_name
+    
+    def idempotent_next(self, idempotency_counter):
+        super().idempotent_next(idempotency_counter)
+        if self._put_name is not None:
+            self._put_name.idempotent_next(idempotency_counter)
 
 
 class CopyFile(_FilePipelineItemBase2):
