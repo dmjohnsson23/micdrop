@@ -220,11 +220,22 @@ class QuerySink(Sink):
     """
     Sink to insert of update using the specified query.
     """
-    def __init__(self, engine:Engine, query:Union[str, Executable], *, buffer_size:int = 100):
+    def __init__(self, engine:Engine, query:Union[str, Executable], *, buffer_size:int = 100, return_primary_key=False):
         """
         :param engine: An SQLAlchemy Engine object to connect to the database
         :param query: The query to use to insert or update data
-        :param buffer_size: The number of results to hold in memory before inserting into the database
+        :param buffer_size: The number of results to hold in memory before inserting into the 
+            database. Set to 1 to disable buffering. Lower values reduce memory footprint at the 
+            cost of higher overhead, higher values are faster but use more memory. This number
+            can actually make quite a big difference in performance--possibly orders of magnitude--
+            so set it as high as you safely can.
+        :param return_primary_key: If the primary key value should be returned when processing. 
+            That primary key value can be retrieved from each `get` method call, from the `process` 
+            generator, or from the `process_all` function if its `return_results` parameter is true.
+            This functionality only works if:
+             - `query` is an insert query
+             - It is built using SQLAlchemy's `insert` construct, not a `text` construct
+             - Buffering is disabled (e.g. `buffer_size` == 1)
         """
         super().__init__()
         self.engine = engine
@@ -233,6 +244,7 @@ class QuerySink(Sink):
         self.query = query
         self.buffer_size = buffer_size
         self._buffer = []
+        self.return_primary_key = return_primary_key
 
     def flush(self):
         """
@@ -252,7 +264,9 @@ class QuerySink(Sink):
                 self.flush()
         else:
             with self.engine.begin() as conn:
-                conn.execute(self.query, row)
+                result = conn.execute(self.query, row)
+                if self.return_primary_key:
+                    row.update(result.inserted_primary_key._asdict())
         return row
     
     def close(self):
@@ -265,12 +279,21 @@ class TableInsertSink(QuerySink):
     Sink to insert into a specific table. This should be much more performant than `TableSink`,
     but has fewer features.
     """
-    def __init__(self, engine:Engine, table:Union[Table,str]):
+    def __init__(self, engine:Engine, table:Union[Table,str], *, buffer_size:int = 100, return_primary_key=False):
         """
         :param engine: An SQLAlchemy Engine object to connect to the database
         :param table: The table or view to pull data from
+        :param buffer_size: The number of results to hold in memory before inserting into the 
+            database. Set to 1 to disable buffering. Lower values reduce memory footprint at the 
+            cost of higher overhead, higher values are faster but use more memory. This number
+            can actually make quite a big difference in performance--possibly orders of magnitude--
+            so set it as high as you safely can.
+        :param return_primary_key: If the primary key value should be returned when processing. 
+            That primary key value can be retrieved from each `get` method call, from the `process` 
+            generator, or from the `process_all` function if its `return_results` parameter is true.
+            This functionality only works if buffering is disabled (e.g. `buffer_size` == 1)
         """
-        super().__init__(engine, insert(make_table(engine, table)))
+        super().__init__(engine, insert(make_table(engine, table)), buffer_size=buffer_size, return_primary_key=return_primary_key)
 
 
 class TableUpdateSink(QuerySink):
@@ -279,7 +302,7 @@ class TableUpdateSink(QuerySink):
     has more database round-trips than `TableInsertSink`, but still fewer than `TableSink`.
     
     """
-    def __init__(self, engine:Engine, table:Union[Table,str], key_columns:Union[Column,str,Sequence[Column],Sequence[str]]=None, default_update_action:UpdateAction=UpdateAction.coalesce, update_actions:Mapping[str,UpdateAction]={}):
+    def __init__(self, engine:Engine, table:Union[Table,str], key_columns:Union[Column,str,Sequence[Column],Sequence[str]]=None, default_update_action:UpdateAction=UpdateAction.coalesce, update_actions:Mapping[str,UpdateAction]={}, *, buffer_size:int = 100):
         """
         :param engine: An SQLAlchemy Engine object to connect to the database
         :param table: The table or view to pull data from
@@ -299,7 +322,7 @@ class TableUpdateSink(QuerySink):
         self.table = table
         self.update_actions = update_actions
         self.default_update_action = default_update_action
-        super().__init__(engine, update(table).where(*[column == bindparam(column.name) for column in columns]))
+        super().__init__(engine, update(table).where(*[column == bindparam(column.name) for column in columns]), buffer_size=buffer_size)
             
     
     @property

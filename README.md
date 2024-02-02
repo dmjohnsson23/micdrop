@@ -105,6 +105,12 @@ Alternatively, you can use `IterableSource` to use a generator as an arbitrary s
 3. Allow for graceful error recovery
 4. Have acceptable performance (with the understanding that data migrations can take a long time when processing large amounts of data)
 
+## Other notes
+
+* Pipelines "suck" from the end (sink), so to speak, rather than "blowing" from the beginning (source). This means that pipeline items will not run unless and until a value is called for by the next pipeline item up the pipe.
+* As a result, multiple sources are allowed (it's pretty common to use a `StaticSource`, `FactorySource`, or `IterableSource` to provide additional data not in the main source) but multiple sinks are not allowed. If this is desired, you can either make multiple passes over the source data, use the `MultiSink` wrapper, or write a custom sink that saves data multiple places.
+* `sink.put_nowhere()` is available if you want to ensure a pipeline item is always called even if it's value is not used.
+
 ## TODOs
 
 * Graceful error recovery (e.g., if a migration is running and an unexpected error occurs, there should be a way to retry or skip)

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "micdrop"
-version = "0.2.3"
+version = "0.3.1"
 description = "Library with declaritive interface to aid in building tools for migrating, mapping, importing, converting, and transforming data."
 authors = ["Dominick Johnson <dominick.johnson@tylertech.com>"]
 readme = "README.md"
@@ -8,9 +8,11 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.7"
 sqlalchemy = {version = "^2.0.20", optional = true}
+pandas = {version = "^2.0.3", optional = true, python = "^3.8"}
 
 [tool.poetry.extras]
 sqlalchemy = ["sqlalchemy"]
+pandas = ["pandas"]
 
 [build-system]
 requires = ["poetry-core"]

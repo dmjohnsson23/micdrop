@@ -108,6 +108,7 @@ class RepeaterSink(Sink):
     def get(self):
         static_values = super().get()
         iter_keys = tuple(self._iter_puts.keys()) # so we guarantee always iterating in the same order
+        # TODO I think we should use zip_longest here so input lengths don't have to all be the same size
         iter_values = zip(*[self._iter_puts[key].guarded_get() for key in iter_keys])
         gotten = []
         for value_set in iter_values:

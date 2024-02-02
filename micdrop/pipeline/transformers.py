@@ -140,22 +140,29 @@ class FormatBoolean(PipelineItem):
 
 
 class Lookup(PipelineItem):
-    def __init__(self, lookup_map, *, convert_keys=None):
+    def __init__(self, lookup_map, *, convert_keys=None, pass_if_not_found=False):
         """
         :param lookup_map: The dictionary to use as a lookup
         :param convert_keys: If provided, a callable that will be used to convert all lookup keys before
             use. May be useful when typing is inconsistent or more flexible typing is needed.Set to None
             to do no conversion.
+        :param pass_if_not_found: If true, and the input value is not found in the lookup, it will 
+            be passed along unchanged. Otherwise, it will be converted to `None`.
+            
+            If you want to use a default value when the lookup value is not found, leave this 
+            parameter false, and use a `Default` pipeline item after it. You can also use a `SkipIf` 
+            pipeline item after a lookup to skip rows with values that are not found in the lookup.
         """
         if convert_keys is not None:
             lookup_map = {convert_keys(key):value for key,value in lookup_map.items()}
         self.convert_keys = convert_keys
+        self.pass_if_not_found = pass_if_not_found
         self.map = lookup_map
     
     def process(self, value):
         if self.convert_keys is not None:
             value = self.convert_keys(value)
-        return self.map.get(value)
+        return self.map.get(value, value if self.pass_if_not_found else None)
 
 class StringReplace(PipelineItem):
     pass #TODO

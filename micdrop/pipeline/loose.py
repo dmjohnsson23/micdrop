@@ -113,7 +113,7 @@ class DictSource(Source):
     Example::
 
         source = DictSource({
-            42: {'name':'Frank Herbert'},
+            42: {'name':'Douglas Adams'},
             111: {'name':'Bilbo Baggins'}, 
             900: {'name':'Yoda'},
         }) 

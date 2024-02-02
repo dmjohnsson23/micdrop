@@ -4,6 +4,7 @@ from typing import Callable
 from contextlib import contextmanager
 from enum import Enum
 from ..exceptions import SkipRowException, StopProcessingException, PipelineProcessingError
+from functools import partial
 
 
 class OnFail(Enum):
@@ -42,8 +43,8 @@ class PipelineItemBase:
         """
         if idempotency_counter == self._reset_idempotency:
             return
-        self.next()
         self._reset_idempotency = idempotency_counter
+        self.next()
 
     def check_progress(self):
         """
@@ -474,9 +475,21 @@ class Invoke(PipelineItem):
         return value(*self.additional_args, **self.additional_kwargs)
     
 
-class InvokeMethod(PipelineItem):
+class _InvokeMethodMeta(type):
+    def __getattr__(self, name):
+        # enables alternate syntax
+        return partial(self, name)
+    
+
+class InvokeMethod(PipelineItem, metaclass=_InvokeMethodMeta):
     """
-    Call a method on the given pipeline value
+    Call a method on the given pipeline value.
+
+    Example::
+
+        source.take('string-column') >> InvokeMethod('replace', '-', '_') >> sink.put('string_col')
+        # Alternate syntax:
+        source.take('string-column') >> InvokeMethod.replace('-', '_') >> sink.put('string_col')
     """
     def __init__(self, method_name: str, *args, **kwargs) -> None:
         self.method_name = method_name

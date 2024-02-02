@@ -337,6 +337,11 @@ class CollectValueOther(Source):
             self._cached = True
         return self._value, self._other
     
+    def idempotent_next(self, idempotency_counter):
+        super().idempotent_next(idempotency_counter)
+        for put in self._puts:
+            put.idempotent_next(idempotency_counter)
+    
     def next(self):
         self._value = None
         self._other = None
