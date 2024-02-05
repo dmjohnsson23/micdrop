@@ -30,7 +30,9 @@ source.take('otherdata') >> sink.put('other_data')
 XML as an output format is planned but not currently implemented.
 """
 from ..pipeline.base import OnFail, Source, PipelineItem, Take
-from xml.etree.ElementTree import Element, iterparse, tostring, XML
+from xml.etree.ElementTree import Element, iterparse, tostring, XML, SubElement
+from typing import Union
+from io import IOBase
     
 class EtreeNodeBaseMixin:
     namespaces = None
@@ -198,5 +200,57 @@ class ParseXml(EtreeNodePipelineItemMixin, PipelineItem):
 #     pass
 
 
-# class XmlDocumentSink():
-#     pass
+class XmlDocumentSink():
+    """
+    A sink which outputs rows as elements in a single large XML document
+    """
+    def __init__(self, xml_file, root_element:Union[Element,str], row_element_name:str, container_element:Union[Element,str]=None):
+        """
+        :param xml_file: The file to output to
+        :param root_element: The root element of the document tree to output. Can also be a string,
+            which will be used to construct an Element object.
+        :param row_element_name: The tag name for the elements that will be created to represent 
+            each data row
+        :param container_element: If the element to populate with records differs from the root 
+            element, specify it here. It can either be an Element object (which must be a child of 
+            root_element) or an xpath selector to select the value from the root element.
+        """
+        self.xml_file = xml_file
+        self.row_element_name = row_element_name
+        self._tail = None
+        if not isinstance(root_element, Element):
+            root_element = Element(root_element)
+        self.root_element = root_element
+        if container_element is None:
+            self.container_element = root_element
+        elif isinstance(container_element, Element):
+            self.container_element = container_element
+        else:
+            self.container_element = root_element.find(container_element)
+
+    def open(self):
+        if not isinstance(self.xml_file, IOBase):
+            self.xml_file = open(self.xml_file, 'w')
+        # Create a fake element we can use as a placeholder to build the XML file
+        el = SubElement(self.container_element, '__micdrop_xml_content_placeholder_element__')
+        template = tostring(self.root_element, 'unicode', xml_declaration=True)
+        head, tail = template.split(tostring(el, 'unicode'))
+        self.xml_file.write(head)
+        self._tail = tail
+        
+    def get(self):
+        # TODO support putting attributes as well as children
+        # TODO support putting Element objects directly
+        children = super().get()
+        el = Element(self.row_element_name)
+        for key, value in children.items():
+            sub = SubElement(el, key)
+            sub.text = str(value)
+        self.xml_file.write(tostring(el, 'unicode'))
+    
+    def close(self):
+        if isinstance(self.xml_file, IOBase):
+            self.xml_file.write(self._tail)
+            self.xml_file.truncate()
+            self.xml_file.close()
+        

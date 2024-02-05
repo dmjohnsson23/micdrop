@@ -194,6 +194,30 @@ class TestPipeline(unittest.TestCase):
             self.assertEqual(choice.get(), 3)
             choice.idempotent_next(4)
             self.assertEqual(choice.get(), 4)
+    
+    def test_value_other(self):
+        value_source = IterableSource(['Beans', 'Other', 'Meat', 'Cheese', 'Greens'])
+        other_source = IterableSource([None, 'Lime Jello', 'Beef', 'Cheddar', None])
+        mapping = {
+            'Beans': "Frijoles",
+            'Meat': "Carne",
+            'Cheese': "Queso",
+        }
+        collect = CollectValueOther()
+        value_source >> mapping >> collect.put_mapped()
+        value_source >> collect.put_unmapped()
+        other_source >> collect.put_other()
+        
+        collect.idempotent_next(1)
+        self.assertEqual(collect.get(), ('Frijoles', None))
+        collect.idempotent_next(2)
+        self.assertEqual(collect.get(), (None, 'Other: Lime Jello'))
+        collect.idempotent_next(3)
+        self.assertEqual(collect.get(), ('Carne', 'Beef'))
+        collect.idempotent_next(4)
+        self.assertEqual(collect.get(), ('Queso', 'Cheddar'))
+        collect.idempotent_next(5)
+        self.assertEqual(collect.get(), (None, 'Greens'))
 
 
 class TestSourceSink(unittest.TestCase):
@@ -345,4 +369,46 @@ class TestSourceSink(unittest.TestCase):
         self.assertEqual(process_all(sink, True), [
             {'f_name': 'Peter', 'occupation': 'Photographer'},
             {'f_name': 'Perrin', 'occupation': 'Blacksmith'},
+        ])
+    
+    def test_repeater_source(self):
+        from itertools import cycle
+        source = RepeaterSource(IterableSource([
+            {'id':1, 'h_phone': '1234657890', 'w_phone': None, 'cell': '9876543210'},
+            {'id':2, 'h_phone': None, 'w_phone': '7410852963', 'cell': '9638527410'},
+        ]))
+        sink = DictsSink()
+
+        source.take('id') >> sink.put('id')
+        IterableSource(cycle(('Home', 'Work', 'Cell'))) >> sink.put('type')
+        source.take_each('h_phone', 'w_phone', 'cell') >> SkipIf.value.is_(None) >> sink.put('number')
+
+        self.assertEqual(process_all(sink, True), [
+            {'id':1, 'type': 'Home', 'number': '1234657890'},
+            {'id':1, 'type': 'Cell', 'number': '9876543210'},
+            {'id':2, 'type': 'Work', 'number': '7410852963'},
+            {'id':2, 'type': 'Cell', 'number': '9638527410'},
+        ])
+
+    def test_repeater_sink(self):
+        source = IterableSource([
+            {'id': 1, 'things':['a', 'b', 'c']},
+            {'id': 2, 'things':['d', 'e']},
+            {'id': 3, 'things':[]},
+            {'id': 4, 'things':['f']},
+        ])
+        sink = RepeaterSink(DictsSink())
+
+        source.take('id') >> sink.put('id')
+        source.take('things') >> sink.put_each('thing')
+
+        self.assertEqual(process_all(sink, True), [
+            # TODO I'm not sure I like the nested lists, reconsider how this class works
+            [{'id':1, 'thing': 'a'},
+            {'id':1, 'thing': 'b'},
+            {'id':1, 'thing': 'c'}],
+            [{'id':2, 'thing': 'd'},
+            {'id':2, 'thing': 'e'}],
+            [], # TODO not sure what the expected behavior in this case (id 3) should be, revist
+            [{'id':4, 'thing': 'f'}],
         ])

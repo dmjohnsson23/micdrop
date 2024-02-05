@@ -84,7 +84,7 @@ class RepeaterSource(Source):
         self.source = source
         self._current_value = None
         self._current_value_counter = None
-        self._max_value_counter = None
+        self._max_value_counter = 0
     
     def take_each(self, *keys, on_not_found=OnFail.fail) -> Source:
         self._max_value_counter = max(self._max_value_counter, len(keys)-1)
