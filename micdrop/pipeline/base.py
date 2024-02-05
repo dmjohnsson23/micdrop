@@ -63,12 +63,12 @@ class PipelineItemBase:
         """
         raise NotImplementedError('`get` must be overridden')
 
-    def guarded_get(self):
+    def guarded_get(self, **kwargs):
         """
         Wrapper around the `get` method that will watch for any unexpected errors and wrap them appropriately.
         """
         try:
-            return self.get()
+            return self.get(**kwargs)
         # Allow certain exception types to propagate
         except StopIteration:
             raise
@@ -393,7 +393,7 @@ class Take(PipelineItem):
     """
     key = None
 
-    def __init__(self, key, on_not_found=False):
+    def __init__(self, key, on_not_found=OnFail.fail):
         self.key = key
         self.on_not_found = on_not_found
     

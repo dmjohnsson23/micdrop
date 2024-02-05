@@ -1,6 +1,7 @@
 from .base import PipelineItem, Source, Put, OnFail
 from time import time_ns
 import os, shutil
+from glob import iglob
 __all__ = ('WriteFile', 'CopyFile', 'MoveFile', 'ReadFile')
 
 
@@ -109,3 +110,33 @@ class ReadFile(PipelineItem):
                 return file.read()
         except OSError as e:
             self.on_fail(e)
+
+
+class FilesSource(Source):
+    """
+    A source that yields the contents of files matching a glob pattern.
+
+    This is most useful in conjunction with a pipeline item that actually parses the file contents, 
+    such as::
+
+        source = FilesSource('*.json') >> JsonParse()
+    """
+    def __init__(self, glob_pattern, mode='r', **open_args):
+        self._path = None
+        self._value = None
+        self._iter = iter(iglob(glob_pattern))
+        self.mode = mode
+        self.open_args = open_args
+    
+    def next(self):
+        self._value = None
+        self._path = next(self._iter)
+    
+    def get_index(self):
+        return self._path
+    
+    def get(self):
+        if self._value is None:
+            with open(self._path, self.mode, **self.open_args) as file:
+                self._value = file.read()
+        return self._value

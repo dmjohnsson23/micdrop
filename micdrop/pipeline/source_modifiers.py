@@ -136,12 +136,12 @@ class _RepeaterSourceTakeWrapper(Source):
         self.source = repeater_source
         self.takes = takes
     
-    def get(self):
+    def get(self, **kwargs):
         try:
             take = self.takes[self.source._current_value_counter]
         except IndexError:
             return None
-        return take.get()
+        return take.get(**kwargs)
     
     def __repr__(self):
         try:
