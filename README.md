@@ -111,6 +111,11 @@ Alternatively, you can use `IterableSource` to use a generator as an arbitrary s
 * As a result, multiple sources are allowed (it's pretty common to use a `StaticSource`, `FactorySource`, or `IterableSource` to provide additional data not in the main source) but multiple sinks are not allowed. If this is desired, you can either make multiple passes over the source data, use the `MultiSink` wrapper, or write a custom sink that saves data multiple places.
 * `sink.put_nowhere()` is available if you want to ensure a pipeline item is always called even if it's value is not used.
 
+## Other useful tools
+
+* [Meza](https://github.com/reubano/meza?tab=readme-ov-file) is a Python library for processing tabular data with iterators. It can be used with Micdrop via `IterableSource` for reading, and Micdrop's `process` generator can be used as an iterable to feed data back into Meza for writing.
+* [MDBTool](https://github.com/mdbtools/mdbtools) is a command-line tool for reading MS Access database files. You can use it to convert an access database into another relational database (such as SQLite) which you can then read using the SQLAlchemy extension for Micdrop, or to a csv file which you can process with the the CSV extension.
+
 ## TODOs
 
 * Graceful error recovery (e.g., if a migration is running and an unexpected error occurs, there should be a way to retry or skip)

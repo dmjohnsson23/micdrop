@@ -424,6 +424,35 @@ class SkipIf(PipelineItem, metaclass=DeferredOperandConstructorValueMeta):
             return value
         
 
+class NoneIf(PipelineItem, metaclass=DeferredOperandConstructorValueMeta):
+    """
+    If the input value matches the condition, then the value is returned as None. Otherwise, forward the value unchanged.
+
+    Example::
+
+        source.take('col') >> NoneIf(lambda value: value == 'N/A') >> sink.put('clean_col')
+        # This is identical to the above, but with some syntactic sugar:
+        source.take('col') >> (NoneIf.value == 'N/A') >> sink.put('clean_col')
+        # If you only need to do an equality comparison, you can also do this:
+        source.take('col') >> NoneIf('N/A') >> sink.put('clean_col')
+
+        # You can also filter out multiple undesirable values at once:
+        source.take('col') >> NoneIf.value.in_(['N/A', 'NA', 'None']) >> sink.put('clean_col')
+
+    """
+    def __init__(self, condition):
+        if callable(condition):
+            self.condition = condition
+        else:
+            self.condition = lambda val: val == condition
+    
+    def process(self, value):
+        if self.condition(value):
+            return None
+        else:
+            return value
+        
+
 class OnlyIf(PipelineItem, metaclass=DeferredOperandConstructorValueMeta):
     """
     If the input value matches the condition, then nothing happens. Otherwise, passes 'None'

@@ -140,6 +140,13 @@ class FormatBoolean(PipelineItem):
 
 
 class Lookup(PipelineItem):
+    """
+    Create a lookup table used to convert one set of known values to another.
+
+    This class is used implicitly when you put a dictionary inline in a pipeline. There is no need
+    to use it explicitly unless you want to pass additional arguments to the constructor to alter 
+    the behavior.
+    """
     def __init__(self, lookup_map, *, convert_keys=None, pass_if_not_found=False):
         """
         :param lookup_map: The dictionary to use as a lookup
@@ -182,6 +189,9 @@ class Slice(PipelineItem):
             return value[self.start:self.stop:self.step]
 
 class Default(PipelineItem):
+    """
+    Supplies a default value if the input value is None.
+    """
     def __init__(self, value:Union[Source,Any]):
         """
         :param value: If a `Source`, get the value from the given source if the current value is None. 

@@ -449,7 +449,14 @@ class TakeIndex(PipelineItem):
 
 class Call(PipelineItem):
     """
-    Call a function with the pipeline value as the first argument
+    Call a function with the pipeline value as the first argument.
+
+    This class is used implicitly when you put a function or other callable inline in a pipeline.
+    You only need to specify it explicitly if you also want to supply additional arguments.
+
+    Note: this works the opposite of `functools.partial`; additional arguments are added *after* 
+    the input argument rather than before. This means you can wrap a `Call` around a `partial` to
+    specify arguments on either side of the main input argument.
     """
     def __init__(self, function: Callable, *additional_args, **additional_kwargs) -> None:
         self.function = function
