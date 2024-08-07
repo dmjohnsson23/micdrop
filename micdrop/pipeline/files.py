@@ -2,6 +2,7 @@ from .base import PipelineItem, Source, Put, OnFail
 from time import time_ns
 import os, shutil
 from glob import iglob
+from pathlib import Path
 __all__ = ('WriteFile', 'CopyFile', 'MoveFile', 'ReadFile')
 
 
@@ -121,10 +122,18 @@ class FilesSource(Source):
 
         source = FilesSource('*.json') >> JsonParse()
     """
-    def __init__(self, glob_pattern, mode='r', **open_args):
+    def __init__(self, source, mode='r', **open_args):
         self._path = None
         self._value = None
-        self._iter = iter(iglob(glob_pattern))
+        if isinstance(source, Path) and source.is_dir():
+            self._iter = iter(source.iterdir())
+        if isinstance(source, tuple):
+            base, glob = source
+            if not isinstance(base, Path):
+                base = Path(base)
+            self._iter = iter(base.glob(glob))
+        else:
+            self._iter = iter(iglob(source))
         self.mode = mode
         self.open_args = open_args
     

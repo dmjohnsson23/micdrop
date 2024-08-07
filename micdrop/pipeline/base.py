@@ -14,6 +14,8 @@ class OnFail(Enum):
     ignore = 'ignore'
 
     def __call__(self, exception:Exception):
+        if isinstance(exception , (SkipRowException,StopProcessingException)):
+            raise exception
         if self is OnFail.skip:
             raise SkipRowException()
         if self is OnFail.stop:
@@ -21,6 +23,9 @@ class OnFail(Enum):
         if self is OnFail.ignore:
             return
         raise exception
+    
+    def to_pipeline_item(self):
+        return FailGuard(self)
 
 class PipelineItemBase:
     _is_open = False
@@ -511,3 +516,25 @@ class InvokeMethod(PipelineItem, metaclass=_InvokeMethodMeta):
     
     def __repr__(self):
         return f"{self.__class__.__name__}({repr(self.method_name)})"
+
+
+class FailGuard(PipelineItem):
+    """
+    A pipline item that will allow handling exceptions raised by previous pipeline items
+    """
+    def __init__(self, handler=OnFail.ignore, catch=None):
+        self.handler = handler
+        self.catch = catch
+
+    def get(self):
+        if self._is_cached:
+            return self._value
+        try:
+            self._value = self._prev.get()
+        except Exception as e:
+            if self.catch is None or isinstance(e, self.catch):
+                self._value = self.handler(e)
+            else:
+                raise
+        self._is_cached = True
+        return self._value

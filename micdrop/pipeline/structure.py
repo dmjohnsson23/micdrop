@@ -18,13 +18,12 @@ class JoinDelimited(PipelineItem):
     """
     Join a list into a string with some delimiter
     """
-    def __init__(self, delimiter):
+    def __init__(self, delimiter:str):
         self._delimiter = delimiter
     
     def process(self, value):
         if value is not None:
-            return self._delimiter.join([str(v) for v in value if v is not None])
-    
+            return self._delimiter.join([str(v) for v in value if v is not None]) or None    
 
 class SplitKeyValue(PipelineItem):
     """

@@ -30,12 +30,12 @@ def make_table(engine:Engine, table:Union[Table,str], *, db_name=None)->Table:
     _tables[db_name,table.name] = table
     return table
 
-def make_column(table:table, column:Union[str,Column])->Column:
+def make_column(table:Table, column:Union[str,Column])->Column:
     if isinstance(column, Column):
         return column
     return make_table(table).columns[column]
 
-def make_columns(table:table, columns:Union[str,Column,Sequence[Column],Sequence[str]])->Column:
+def make_columns(table:Table, columns:Union[str,Column,Sequence[Column],Sequence[str]])->Column:
     if isinstance(column, Sequence):
         return [make_column(table, c) for c in columns]
     return [make_column(make_table(table), columns)]

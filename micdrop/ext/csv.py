@@ -19,6 +19,8 @@ class CSVSource(Source):
         self._iter = None
     
     def keys(self):
+        if not self.is_open:
+            self.open()
         return self._reader.fieldnames
 
     def next(self):
