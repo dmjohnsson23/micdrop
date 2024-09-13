@@ -93,6 +93,8 @@ sink.process_all(source, on_duplicate_update=True)
 
 The various types of pipeline items available are reasonably well documented by the docblocks inside the source code, but there is currently no stand-alone documentation.
 
+There is also a brief [tutorial](TUTORIAL.md).
+
 ## Extensibility
 
 This library is designed for extensibility. Your can write your own sinks, sources, or pipeline items by extending `Sink`, `Source`, and `PipelineItem` respectively. You can also allow arbitrary classes to be used as pipeline items if you implement a method named `to_pipeline_source`, `to_pipeline_item`, or `to_pipeline_put` (Implement any one of the three).
