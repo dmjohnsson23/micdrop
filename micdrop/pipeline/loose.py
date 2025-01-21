@@ -3,7 +3,7 @@ A collection of pipeline items that are "loose ends", e.g. either do not pull fr
 """
 __all__ = ('FactorySource', 'StaticSource', 'PuppetSource', 'IterableSource')
 
-from .base import Source
+from .base import Source, logger
 
 class FactorySource(Source):
     """
@@ -104,6 +104,7 @@ class IterableSource(Source):
             
     def next(self):
         self._value = next(self._iterable) # Deliberately allow StopIteration to propagate
+        logger.info('Next value: %s', self._value)
 
 
 class DictSource(Source):
@@ -135,4 +136,5 @@ class DictSource(Source):
             
     def next(self):
         self._key, self._value = next(self._iterable) # Deliberately allow StopIteration to propagate
+        logger.info('Next value: %s', self._value)
     

@@ -1,4 +1,4 @@
-from .base import PipelineItem, Source, Put, OnFail
+from .base import PipelineItem, Source, Put, OnFail, logger
 from time import time_ns
 import os, shutil
 from glob import iglob
@@ -146,6 +146,7 @@ class FilesSource(Source):
     
     def get(self):
         if self._value is None:
+            logger.info("Read file %s", self._path)
             with open(self._path, self.mode, **self.open_args) as file:
                 self._value = file.read()
         return self._value

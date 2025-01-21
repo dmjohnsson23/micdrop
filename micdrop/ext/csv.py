@@ -1,7 +1,7 @@
 """
 Extension integrating with the csv module in the python standard library.
 """
-from ..pipeline import Source
+from ..pipeline import Source, logger
 from ..sink import Sink
 from csv import DictReader, DictWriter
 from io import IOBase
@@ -25,6 +25,7 @@ class CSVSource(Source):
 
     def next(self):
         self._current_value = next(self._iter) # Deliberately allow StopIteration to propagate
+        logger.info('Next value: %s', self._current_value)
         self._current_index += 1
     
     def get(self):

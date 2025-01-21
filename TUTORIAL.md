@@ -107,7 +107,7 @@ Let's return to the top of the script and make a temporary change to the `contac
 
 ```python
 with engine.begin() as conn:
-    conn.execute(text(f'''ALTER TABLE `{mysql_db}`.{contacts}
+    conn.execute(text(f'''ALTER TABLE `{mysql_db}`.contacts
         ADD tmp_migrated_id INT NULL,
         ADD INDEX (tmp_migrated_id)
     '''))

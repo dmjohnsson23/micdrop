@@ -5,22 +5,27 @@ from contextlib import contextmanager
 from enum import Enum
 from ..exceptions import SkipRowException, StopProcessingException, PipelineProcessingError
 from functools import partial
-
+import logging
+logger =logging.getLogger('micdrop')
 
 class OnFail(Enum):
     fail = 'fail'
     stop = 'stop'
     skip = 'skip'
     ignore = 'ignore'
+    log_and_skip = 'log_and_skip'
+    log_and_ignore = 'log_and_ignore'
 
     def __call__(self, exception:Exception):
         if isinstance(exception , (SkipRowException,StopProcessingException)):
             raise exception
-        if self is OnFail.skip:
+        if self is OnFail.log_and_ignore or self is OnFail.log_and_skip:
+            logger.error(str(exception), exc_info=exception)
+        if self is OnFail.skip or self is OnFail.log_and_skip:
             raise SkipRowException()
         if self is OnFail.stop:
             raise StopProcessingException()
-        if self is OnFail.ignore:
+        if self is OnFail.ignore or self is OnFail.log_and_ignore:
             return
         raise exception
     

@@ -1,5 +1,5 @@
 from sqlalchemy import *
-from ...pipeline import Source, PipelineItem,  Lookup, CollectDict
+from ...pipeline import Source, PipelineItem,  Lookup, CollectDict, logger
 from ...sink import Sink
 from typing import Union, Sequence, Mapping
 from functools import lru_cache
@@ -119,6 +119,7 @@ class QuerySource(Source):
         try:
             # FIXME fails on an empty result set because self._iter is None, despite changes to _next_page?
             self._current_value = next(self._iter)
+            logger.info('Next value: %s', self._current_value)
             self._current_index += 1
         except StopIteration:
             # See if there is another page, then try again
@@ -348,7 +349,7 @@ class TableSink(Sink):
 
     More efficient "upsert" sinks can also be found, but they are dialect-specific, e.g. `MySQLTableInsertSink`.
     """
-    def __init__(self, engine:Engine, table:Union[Table,str], key_columns:Union[Column,str,Sequence[Column],Sequence[str]]=None, *, do_updates=True, update_actions:Mapping[str,UpdateAction]={}, default_update_action:UpdateAction=UpdateAction.coalesce):
+    def __init__(self, engine:Engine, table:Union[Table,str], key_columns:Union[Column,str,Sequence[Column],Sequence[str]]=None, *, do_updates=True, update_actions:Mapping[str,UpdateAction]={}, default_update_action:UpdateAction=UpdateAction.coalesce, update_empty_key=True):
         """
         :param engine: An SQLAlchemy Engine object to connect to the database
         :param table: The table or view to pull data from
@@ -356,10 +357,14 @@ class TableSink(Sink):
             If not provided, the primary key will be used.
         :param default_update_action: Default value to use when none is found in `update_actions`.
         :param update_actions: Mapping of column names to actions
+        :param update_empty_key: If false, then all rows with an empty (falsy) value for the key 
+            column(s) will be inserted rather than updated. This option is not recommended if the
+            key represents an actual primary key, but may be useful if the key is merely an index.
         """
         super().__init__()
         self.engine = engine
         self.table = table
+        self.update_empty_key = update_empty_key
         if key_columns is not None:
             key_cols = make_columns(self.table, key_columns)
         else:
@@ -394,7 +399,13 @@ class TableSink(Sink):
     def get(self):
         row = super().get()
         with self.engine.begin() as conn:
-            selected = conn.execute(self.query_select, {col.name:row[col.name] for col in self.key_columns}).scalar()
+            key = {col.name:row[col.name] for col in self.key_columns}
+            if self.update_empty_key or any(key.values()):
+                # The key is not empty, or we are allowing empty keys
+                selected = conn.execute(self.query_select, key).scalar()
+            else:
+                # The key is empty and we are not allowing empty keys
+                selected = None
             if selected and self.do_updates:
                 # An existing value was found and we want to update it
                 conn.execute(self.query_update, row)
@@ -470,6 +481,7 @@ class CollectQuery(CollectDict):
             query = text(query)
         self.query = query
         self.engine = engine
+        super().__init__()
 
     def get(self):
         if self._value is None:
@@ -477,6 +489,10 @@ class CollectQuery(CollectDict):
             with self.engine.begin() as conn:
                 self._process_result(conn.execute(self.query, params))
         return self._value
+    
+    def next(self):
+        super().next()
+        self._value = None
     
     def _process_result(self, result):
         self._value = result.fetchall()
