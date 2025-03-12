@@ -33,9 +33,9 @@ class Sink(Put):
         """
         Call `idempotent_next` on all Puts in this sink
         """
-        for put in self._puts.values():
-            put.idempotent_next(idempotency_counter)
         for put in self._null_puts:
+            put.idempotent_next(idempotency_counter)
+        for put in self._puts.values():
             put.idempotent_next(idempotency_counter)
         if self._prev is not None:
             self._prev.idempotent_next(idempotency_counter)

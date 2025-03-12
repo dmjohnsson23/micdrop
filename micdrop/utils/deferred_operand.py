@@ -296,3 +296,31 @@ class DeferredOperandConstructorValueMeta(type):
             TheClass(lambda value: value > 5)
         """
         return DeferredOperand(self)
+    
+    @property
+    def is_none(self):
+        """
+        Alternate constructor using `DeferredOperand`.
+
+        Example::
+
+            # This...
+            (TheClass.value > 5) # Parens may be required due to operator precedence
+            # ...is equivalent to this
+            TheClass(lambda value: value > 5)
+        """
+        return DeferredOperand(self).is_(None)
+    
+    @property
+    def is_not_none(self):
+        """
+        Alternate constructor using `DeferredOperand`.
+
+        Example::
+
+            # This...
+            (TheClass.value > 5) # Parens may be required due to operator precedence
+            # ...is equivalent to this
+            TheClass(lambda value: value > 5)
+        """
+        return DeferredOperand(self).is_not(None)

@@ -1,7 +1,7 @@
 """
 Extension integrating with the csv module in the python standard library.
 """
-from ..pipeline import Source, logger
+from ..pipeline import Source, logger, PipelineItem, Lookup
 from ..sink import Sink
 from csv import DictReader, DictWriter
 from io import IOBase
@@ -73,3 +73,19 @@ class CSVSink(Sink):
             yield row
 
 
+class CsvLookup(Lookup):
+    """
+    Load a lookup table from a CSV file
+    """
+    def __init__(self, file, key_column=None, value_column=None, *, encoding=None, convert_keys=None, pass_if_not_found=False, **csv_reader_options):
+        if not isinstance(self._file, IOBase):
+            file = open(self._file, 'r', newline='', encoding=encoding)
+        with file:
+            with DictReader(file, **csv_reader_options) as reader:
+                mapping = {}
+                for index, row in enumerate(reader):
+                    key = row[key_column] if key_column is not None else index
+                    value = row[value_column] if value_column is not None else row
+                    mapping[key] = value
+        super().__init__(mapping, convert_keys=convert_keys, pass_if_not_found=pass_if_not_found)
+        

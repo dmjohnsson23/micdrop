@@ -303,7 +303,7 @@ class TableUpdateSink(QuerySink):
     has more database round-trips than `TableInsertSink`, but still fewer than `TableSink`.
     
     """
-    def __init__(self, engine:Engine, table:Union[Table,str], key_columns:Union[Column,str,Sequence[Column],Sequence[str]]=None, default_update_action:UpdateAction=UpdateAction.coalesce, update_actions:Mapping[str,UpdateAction]={}, *, buffer_size:int = 100):
+    def __init__(self, engine:Engine, table:Union[Table,str], key_columns:Union[Column,str,Sequence[Column],Sequence[str]]=None, default_update_action:UpdateAction=UpdateAction.coalesce, update_actions:Mapping[str,UpdateAction]={}, *, buffer_size:int = 100, additional_conditions=None):
         """
         :param engine: An SQLAlchemy Engine object to connect to the database
         :param table: The table or view to pull data from
@@ -311,6 +311,8 @@ class TableUpdateSink(QuerySink):
             If not provided, the primary key will be used.
         :param default_update_action: Default value to use when none is found in `update_actions`.
         :param update_actions: Mapping of column names to actions
+        :param additional_conditions: Additional conditions to add to the SQL query. Value should
+            be somthing suitable to pass to `query.where()`.
         """
         table = make_table(engine, table)
         if key_columns is not None:
@@ -323,7 +325,10 @@ class TableUpdateSink(QuerySink):
         self.table = table
         self.update_actions = update_actions
         self.default_update_action = default_update_action
-        super().__init__(engine, update(table).where(*[column == bindparam(column.name) for column in columns]), buffer_size=buffer_size)
+        query = update(table).where(*[column == bindparam(column.name) for column in columns])
+        if additional_conditions is not None:
+            query = query.where(additional_conditions)
+        super().__init__(engine, query, buffer_size=buffer_size)
             
     
     @property

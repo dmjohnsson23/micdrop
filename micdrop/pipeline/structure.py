@@ -21,9 +21,20 @@ class JoinDelimited(PipelineItem):
     def __init__(self, delimiter:str):
         self._delimiter = delimiter
     
+    def _wrap(self, wrapper, value):
+        if value is None: 
+            return None
+        if wrapper is None:
+            return value
+        if isinstance(wrapper, str):
+            return wrapper.format(value)
+        if callable(wrapper):
+            return wrapper(value)
+        return value
+    
     def process(self, value):
-        if value is not None:
-            return self._delimiter.join([str(v) for v in value if v is not None]) or None    
+        if value:
+            return self._wrap(self._wrap_whole, self._delimiter.join([str(self._wrap(self._wrap_items, v)) for v in value if v is not None]) or None)
 
 class SplitKeyValue(PipelineItem):
     """
@@ -47,13 +58,37 @@ class JoinKeyValue(PipelineItem):
     """
     Join a dict into a string with some delimiter
     """
-    def __init__(self, kv_delimiter, row_delimiter="\n"):
+    def __init__(self, kv_delimiter, row_delimiter="\n", wrap_keys=None, wrap_values=None, wrap_rows=None, wrap_whole=None):
         self._kv_delimiter = kv_delimiter
         self._row_delimiter = row_delimiter
+        self._wrap_keys = wrap_keys
+        self._wrap_values = wrap_values
+        self._wrap_rows = wrap_rows
+        self._wrap_whole = wrap_whole
+    
+    def _wrap(self, wrapper, value):
+        if value is None:
+            return None
+        if wrapper is None:
+            return value
+        if isinstance(wrapper, str):
+            return wrapper.format(value)
+        if callable(wrapper):
+            return wrapper(value)
+        return value
+    
+    def _rows(self, items):
+        for key, value in items:
+            if value is None:
+                continue
+            key = self._wrap(self._wrap_keys, key)
+            value = self._wrap(self._wrap_values, value)
+            row = f"{key}{self._kv_delimiter}{value}"
+            yield self._wrap(self._wrap_rows, row)
     
     def process(self, value):
-        if value is not None:
-            return self._row_delimiter.join([f"{k}{self._kv_delimiter}{v}" for k,v in value.items() if v is not None])
+        if value:
+            return self._wrap(self._wrap_whole, self._row_delimiter.join(self._rows(value.items())) or None)
 
 
 class JsonParse(PipelineItem):
@@ -77,7 +112,7 @@ class JsonFormat(PipelineItem):
 
 
 class _RegexParseBase(PipelineItem):
-    """
+    r"""
     Use regex to parse a string into component capture groups. The output is a `re.Match` object,
     which you can `take` group values from.
 
