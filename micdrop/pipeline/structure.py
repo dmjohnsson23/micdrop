@@ -18,8 +18,10 @@ class JoinDelimited(PipelineItem):
     """
     Join a list into a string with some delimiter
     """
-    def __init__(self, delimiter:str):
+    def __init__(self, delimiter:str, wrap_items=None, wrap_whole=None):
         self._delimiter = delimiter
+        self._wrap_items = wrap_items
+        self._wrap_whole = wrap_whole
     
     def _wrap(self, wrapper, value):
         if value is None: 

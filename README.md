@@ -1,6 +1,6 @@
 # MIC Drop (Migrate, Import, Convert)
 
-**Note: This library is still in development, and the API is expected to change with future improvements.**
+**Note: I a currently re-implementing this library in Ruby, which provides a signficantly cleaner syntax for what I'm trying to do. This version will eventually be archived.**
 
 Extensible framework/library to migrate data from source to another using a declarative interface. The library makes elaborate (and somewhat unconventional) use of operator overloading to abstract away some boilerplate and allow you to focus on the important part: mapping data.
 

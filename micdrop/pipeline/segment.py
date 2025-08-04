@@ -22,7 +22,7 @@ class PipelineSegment:
             self.set_outlet(self._outlet >> next)
         return self
     
-    def __lshift__(self, prev):
+    def __lshift__(self, prev)->'PipelineSegment':
         """Prepend a new Source at the inlet."""
         if self._inlet is None:
             prev = Source.create(prev)

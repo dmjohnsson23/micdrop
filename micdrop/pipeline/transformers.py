@@ -111,7 +111,7 @@ class FormatDate(PipelineItem):
             return value.strftime(self._format)
 
 class ParseBoolean(PipelineItem):
-    def __init__(self, true_values={1, '1', 'true', 'True', 'TRUE', 'yes', 'Yes', 'YES', 'on', 'On', 'ON'}, false_values={0, '0', 'false', 'False', 'FALSE', 'no', 'No', 'NO', 'off', 'Off', 'OFF'}):
+    def __init__(self, true_values={1, '1', 'true', 'True', 'TRUE', 'yes', 'Yes', 'YES', 'on', 'On', 'ON'}, false_values={0, '0', 'false', 'False', 'FALSE', 'no', 'No', 'NO', 'off', 'Off', 'OFF', ''}):
         self.true_values = set(true_values)
         self.false_values = set(false_values)
     

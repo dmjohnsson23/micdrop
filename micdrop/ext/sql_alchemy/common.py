@@ -1,5 +1,5 @@
 from sqlalchemy import *
-from ...pipeline import Source, PipelineItem,  Lookup, CollectDict, logger
+from ...pipeline import Source, PipelineItem,  Lookup, CollectDict, logger, OnFail
 from ...sink import Sink
 from typing import Union, Sequence, Mapping
 from functools import lru_cache
@@ -579,11 +579,11 @@ class QueryRow(Query):
             result = conn.execute(self.query, {'value':value})
             return result.one_or_none()
     
-    def take(self, key, safe=False):
+    def take(self, key, on_not_found=OnFail.fail):
         if isinstance(key, int):
-            return super().take(key, safe)
+            return super().take(key, on_not_found)
         else:
-            return self.take_attr(key, safe)
+            return self.take_attr(key, on_not_found)
         
 
 class CollectQueryRow(CollectQuery):

@@ -10,13 +10,14 @@ class CSVSource(Source):
     """
     Allows using a CSV file as a source. Uses `csv.DictReader` under the hood.
     """
-    def __init__(self, file, *, encoding=None, **csv_reader_options):
+    def __init__(self, file, *, encoding=None, empty_is_none=False, **csv_reader_options):
         super().__init__()
         self._file = file
         self._encoding = encoding
         self._reader_opts = csv_reader_options
         self._reader = None
         self._iter = None
+        self._empty_is_none = empty_is_none
     
     def keys(self):
         if not self.is_open:
@@ -25,6 +26,10 @@ class CSVSource(Source):
 
     def next(self):
         self._current_value = next(self._iter) # Deliberately allow StopIteration to propagate
+        if self._empty_is_none:
+            for key, value in self._current_value.items():
+                if value == '':
+                    self._current_value[key] = None
         logger.info('Next value: %s', self._current_value)
         self._current_index += 1
     

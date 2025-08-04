@@ -6,6 +6,9 @@ from enum import Enum
 from ..exceptions import SkipRowException, StopProcessingException, PipelineProcessingError
 from functools import partial
 import logging
+from typing import Optional, Union, TYPE_CHECKING
+if TYPE_CHECKING:
+    from .segment import PipelineSegment
 logger =logging.getLogger('micdrop')
 
 class OnFail(Enum):
@@ -189,7 +192,7 @@ class Source(PipelineItemBase):
             self._progress_completed = 0
         self._progress_completed += 1
 
-    def __rshift__(self, next):
+    def __rshift__(self, next)->Union['Put','PipelineItem']:
         next = Put.create(next)
         next._prev = self
         return next
@@ -239,7 +242,7 @@ class Source(PipelineItemBase):
         pass
 
     @classmethod
-    def create(cls, item):
+    def create(cls, item)->'Source':
         if isinstance(item, Source):
             return item
         elif hasattr(item, 'to_pipeline_source'):
@@ -249,7 +252,7 @@ class Source(PipelineItemBase):
 
 
 class Put(PipelineItemBase):
-    _prev: Source = None
+    _prev: Optional[Source] = None
 
     def get(self):
         return self._prev.guarded_get()
@@ -294,7 +297,7 @@ class Put(PipelineItemBase):
             self._prev.close()
 
     @classmethod
-    def create(cls, item):
+    def create(cls, item)->'Put':
         if isinstance(item, Put):
             return item
         elif hasattr(item, 'to_pipeline_put'):
@@ -338,7 +341,7 @@ class PipelineItem(Put, Source):
         self._value = None
         self._is_cached = False
     
-    def __rshift__(self, next):
+    def __rshift__(self, next)->Union['Put', 'PipelineItem', 'PipelineSegment']:
         if self._prev is None:
             # Create a pipeline segment since this item has no source
             from .segment import PipelineSegment
@@ -347,7 +350,7 @@ class PipelineItem(Put, Source):
             return super().__rshift__(next)
     
     @classmethod
-    def create(cls, item):
+    def create(cls, item)->'PipelineItem':
         if isinstance(item, PipelineItem):
             return item
         elif hasattr(item, 'to_pipeline_item'):
